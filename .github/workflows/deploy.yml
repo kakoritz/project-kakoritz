@@ -1,11 +1,11 @@
-name: Build & Push to GitHub Container Registry
+name: Build, Push & Deploy
 
 on:
   push:
     branches: [main]
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,3 +21,15 @@ jobs:
         run: |
           docker build -t ghcr.io/kakoritz/project-kakoritz:latest .
           docker push ghcr.io/kakoritz/project-kakoritz:latest
+
+      - name: Deploy to NAS
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.NAS_SSH_KEY }}" > ~/.ssh/nas_key
+          chmod 600 ~/.ssh/nas_key
+          ssh-keyscan 192.168.1.251 >> ~/.ssh/known_hosts
+          DOCKER=/var/packages/ContainerManager/target/usr/bin/docker
+          ssh -i ~/.ssh/nas_key aspiker@192.168.1.251 "$DOCKER pull ghcr.io/kakoritz/project-kakoritz:latest"
+          ssh -i ~/.ssh/nas_key aspiker@192.168.1.251 "$DOCKER stop project-kakoritz || true"
+          ssh -i ~/.ssh/nas_key aspiker@192.168.1.251 "$DOCKER rm project-kakoritz || true"
+          ssh -i ~/.ssh/nas_key aspiker@192.168.1.251 "$DOCKER run -d --name project-kakoritz --restart unless-stopped -p 8585:80 ghcr.io/kakoritz/project-kakoritz:latest"
