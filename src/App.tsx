@@ -1,122 +1,93 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { Box, CssBaseline, ThemeProvider, createTheme, AppBar, Toolbar, Typography, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, IconButton } from '@mui/material'
+import DashboardIcon from '@mui/icons-material/Dashboard'
+import MonitorHeartIcon from '@mui/icons-material/MonitorHeart'
+import BarChartIcon from '@mui/icons-material/BarChart'
+import AppsIcon from '@mui/icons-material/Apps'
+import HomeIcon from '@mui/icons-material/Home'
+import MenuIcon from '@mui/icons-material/Menu'
+import Overview from './pages/Overview'
+import LabMonitor from './pages/LabMonitor'
+import Analytics from './pages/Analytics'
+import Portal from './pages/Portal'
 
-function App() {
-  const [count, setCount] = useState(0)
+const theme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary: { main: '#6366f1' },
+    background: { default: '#0f0f1a', paper: '#1a1a2e' },
+  },
+  typography: { fontFamily: '"Inter", "Roboto", sans-serif' },
+})
+
+const DRAWER_WIDTH = 220
+
+const NAV = [
+  { label: 'Overview', icon: <HomeIcon />, page: 'overview' },
+  { label: 'Lab Monitor', icon: <MonitorHeartIcon />, page: 'lab' },
+  { label: 'Analytics', icon: <BarChartIcon />, page: 'analytics' },
+  { label: 'App Portal', icon: <AppsIcon />, page: 'portal' },
+]
+
+export default function App() {
+  const [page, setPage] = useState('overview')
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  const drawer = (
+    <Box sx={{ mt: 8 }}>
+      <List>
+        {NAV.map((item) => (
+          <ListItem key={item.page} disablePadding>
+            <ListItemButton
+              selected={page === item.page}
+              onClick={() => { setPage(item.page); setMobileOpen(false) }}
+              sx={{ borderRadius: 2, mx: 1, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.label} />
+            </ListItemButton>
+          </ListItem>
+        ))}
+      </List>
+    </Box>
+  )
+
+  const renderPage = () => {
+    switch (page) {
+      case 'overview': return <Overview />
+      case 'lab': return <LabMonitor />
+      case 'analytics': return <Analytics />
+      case 'portal': return <Portal />
+      default: return <Overview />
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Box sx={{ display: 'flex' }}>
+        <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'background.paper', borderBottom: '1px solid rgba(255,255,255,0.08)' }} elevation={0}>
+          <Toolbar>
+            <IconButton edge="start" sx={{ mr: 2, display: { sm: 'none' } }} onClick={() => setMobileOpen(!mobileOpen)}>
+              <MenuIcon />
+            </IconButton>
+            <DashboardIcon sx={{ mr: 1.5, color: 'primary.main' }} />
+            <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: 1 }}>KAKORITZ</Typography>
+          </Toolbar>
+        </AppBar>
 
-      <div className="ticks"></div>
+        <Drawer variant="permanent" sx={{ width: DRAWER_WIDTH, flexShrink: 0, display: { xs: 'none', sm: 'block' }, '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', bgcolor: 'background.paper', borderRight: '1px solid rgba(255,255,255,0.08)' } }}>
+          {drawer}
+        </Drawer>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        <Drawer variant="temporary" open={mobileOpen} onClose={() => setMobileOpen(false)} sx={{ display: { xs: 'block', sm: 'none' }, '& .MuiDrawer-paper': { width: DRAWER_WIDTH } }}>
+          {drawer}
+        </Drawer>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8, minHeight: '100vh', bgcolor: 'background.default' }}>
+          {renderPage()}
+        </Box>
+      </Box>
+    </ThemeProvider>
   )
 }
-
-export default App
