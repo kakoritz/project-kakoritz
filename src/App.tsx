@@ -6,10 +6,12 @@ import BarChartIcon from '@mui/icons-material/BarChart'
 import AppsIcon from '@mui/icons-material/Apps'
 import HomeIcon from '@mui/icons-material/Home'
 import MenuIcon from '@mui/icons-material/Menu'
+import WbSunnyIcon from '@mui/icons-material/WbSunny'
 import Overview from './pages/Overview'
 import LabMonitor from './pages/LabMonitor'
 import Analytics from './pages/Analytics'
 import Portal from './pages/Portal'
+import Weather from './pages/Weather'
 
 const theme = createTheme({
   palette: {
@@ -24,6 +26,7 @@ const DRAWER_WIDTH = 220
 
 const NAV = [
   { label: 'Overview', icon: <HomeIcon />, page: 'overview' },
+  { label: 'Weather', icon: <WbSunnyIcon />, page: 'weather' },
   { label: 'Lab Monitor', icon: <MonitorHeartIcon />, page: 'lab' },
   { label: 'Analytics', icon: <BarChartIcon />, page: 'analytics' },
   { label: 'App Portal', icon: <AppsIcon />, page: 'portal' },
@@ -55,6 +58,7 @@ export default function App() {
   const renderPage = () => {
     switch (page) {
       case 'overview': return <Overview />
+      case 'weather': return <Weather />
       case 'lab': return <LabMonitor />
       case 'analytics': return <Analytics />
       case 'portal': return <Portal />
