@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Box, Typography, CircularProgress, IconButton, Dialog, Tooltip } from '@mui/material'
 import { RefreshCw, X, ZoomIn } from 'lucide-react'
 
 const API = 'http://192.168.1.251:8586'
-const REFRESH_MS = 5 * 60 * 1000
+const ROTATE_MS = 15 * 1000
 const GRID_COUNT = 24
 
 const SIZES = [
@@ -26,37 +26,59 @@ function shuffle<T>(arr: T[]): T[] {
 
 export default function Gallery() {
   const [allPhotos, setAllPhotos] = useState<string[]>([])
-  const [displayed, setDisplayed] = useState<{ src: string; size: typeof SIZES[0] }[]>([])
+  const [displayed, setDisplayed] = useState<{ src: string; size: typeof SIZES[0]; fading: boolean }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState<string | null>(null)
-  const [lastRefresh, setLastRefresh] = useState(new Date())
+  const allPhotosRef = useRef<string[]>([])
+  const displayedRef = useRef(displayed)
 
-  const pick = useCallback((photos: string[]) => {
-    const picked = shuffle(photos).slice(0, GRID_COUNT)
-    setDisplayed(picked.map(src => ({
-      src,
-      size: SIZES[Math.floor(Math.random() * SIZES.length)]
-    })))
-    setLastRefresh(new Date())
-  }, [])
+  useEffect(() => { displayedRef.current = displayed }, [displayed])
 
   useEffect(() => {
     fetch(`${API}/api/photos`)
       .then(r => r.json())
       .then((photos: string[]) => {
+        allPhotosRef.current = photos
         setAllPhotos(photos)
-        pick(photos)
+        const picked = shuffle(photos).slice(0, GRID_COUNT)
+        setDisplayed(picked.map(src => ({ src, size: SIZES[Math.floor(Math.random() * SIZES.length)], fading: false })))
         setLoading(false)
       })
       .catch(() => { setError('Cannot reach photo API. Is the container running on port 8586?'); setLoading(false) })
   }, [])
 
+  // Rotate one photo every 15 seconds
   useEffect(() => {
     if (!allPhotos.length) return
-    const t = setInterval(() => pick(allPhotos), REFRESH_MS)
+    const t = setInterval(() => {
+      const current = displayedRef.current
+      if (!current.length) return
+
+      const currentSrcs = new Set(current.map(p => p.src))
+      const pool = allPhotosRef.current.filter(p => !currentSrcs.has(p))
+      if (!pool.length) return
+
+      const slotIdx = Math.floor(Math.random() * current.length)
+      const newSrc = pool[Math.floor(Math.random() * pool.length)]
+
+      // Fade out
+      setDisplayed(prev => prev.map((p, i) => i === slotIdx ? { ...p, fading: true } : p))
+
+      // Swap after fade
+      setTimeout(() => {
+        setDisplayed(prev => prev.map((p, i) =>
+          i === slotIdx ? { src: newSrc, size: p.size, fading: false } : p
+        ))
+      }, 600)
+    }, ROTATE_MS)
     return () => clearInterval(t)
-  }, [allPhotos, pick])
+  }, [allPhotos])
+
+  const shuffleAll = () => {
+    const picked = shuffle(allPhotosRef.current).slice(0, GRID_COUNT)
+    setDisplayed(picked.map(src => ({ src, size: SIZES[Math.floor(Math.random() * SIZES.length)], fading: false })))
+  }
 
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>
   if (error) return (
@@ -72,11 +94,11 @@ export default function Gallery() {
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>Family Photos</Typography>
           <Typography variant="body2" color="text.secondary">
-            {allPhotos.length} photos · refreshes every 5 min · last updated {lastRefresh.toLocaleTimeString()}
+            {allPhotos.length} photos · one photo rotates every 15 seconds
           </Typography>
         </Box>
-        <Tooltip title="Shuffle now">
-          <IconButton onClick={() => pick(allPhotos)} sx={{ bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <Tooltip title="Shuffle all">
+          <IconButton onClick={shuffleAll} sx={{ bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.08)' }}>
             <RefreshCw size={18} />
           </IconButton>
         </Tooltip>
@@ -88,9 +110,9 @@ export default function Gallery() {
         gridAutoRows: '180px',
         gap: 1.5,
       }}>
-        {displayed.map(({ src, size }, i) => (
+        {displayed.map(({ src, size, fading }, i) => (
           <Box
-            key={`${src}-${i}`}
+            key={`slot-${i}`}
             onClick={() => setLightbox(src)}
             sx={{
               gridColumn: size.col,
@@ -114,7 +136,8 @@ export default function Gallery() {
                 width: '100%', height: '100%',
                 objectFit: 'cover',
                 display: 'block',
-                transition: 'transform 0.4s ease',
+                transition: 'transform 0.4s ease, opacity 0.6s ease',
+                opacity: fading ? 0 : 1,
               }}
             />
             <Box className="overlay" sx={{
