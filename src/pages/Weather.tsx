@@ -3,7 +3,7 @@ import { Box, Typography, Grid, Card, CardContent, CircularProgress, Chip, Dialo
 import type { TransitionProps } from '@mui/material/transitions'
 import { forwardRef } from 'react'
 import { Wind, Droplets, Eye, Thermometer, Sun, Umbrella, Navigation, X } from 'lucide-react'
-import { WeatherScene, WeatherBackground, getWeatherBg } from './WeatherScene'
+import { WeatherScene, getWeatherBg } from './WeatherScene'
 
 const LAT = 35.37
 const LON = -81.96
@@ -145,8 +145,7 @@ export default function Weather() {
     <Box>
       {/* Hero */}
       <Card sx={{ borderRadius: 4, background: heroBg, border: '1px solid rgba(255,255,255,0.08)', mb: 3, overflow: 'hidden', position: 'relative' }}>
-        <WeatherBackground code={data.current.code} />
-        <CardContent sx={{ p: 4, position: 'relative', zIndex: 1 }}>
+        <CardContent sx={{ p: 4 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
             <Box>
               <Typography variant="body2" color="rgba(255,255,255,0.6)" sx={{ letterSpacing: 2, textTransform: 'uppercase', mb: 0.5 }}>
