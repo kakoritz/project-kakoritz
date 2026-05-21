@@ -3,6 +3,7 @@ import { Box, Typography, Grid, Card, CardContent, CircularProgress, Chip, Dialo
 import type { TransitionProps } from '@mui/material/transitions'
 import { forwardRef } from 'react'
 import { Wind, Droplets, Eye, Thermometer, Sun, Umbrella, Navigation, X } from 'lucide-react'
+import { WeatherScene, WeatherBackground, getWeatherBg } from './WeatherScene'
 
 const LAT = 35.37
 const LON = -81.96
@@ -135,6 +136,7 @@ export default function Weather() {
   if (error || !data) return <Typography color="error">{error}</Typography>
 
   const curr = getWmo(data.current.code)
+  const heroBg = getWeatherBg(data.current.code)
   const dayHours = selectedDay ? data.hourly.filter(h => h.time.startsWith(selectedDay.date)) : []
   const selWmo = selectedDay ? getWmo(selectedDay.code) : null
   const selDate = selectedDay ? new Date(selectedDay.date + 'T12:00:00') : null
@@ -142,18 +144,19 @@ export default function Weather() {
   return (
     <Box>
       {/* Hero */}
-      <Card sx={{ borderRadius: 4, background: curr.bg, border: '1px solid rgba(255,255,255,0.08)', mb: 3, overflow: 'hidden' }}>
-        <CardContent sx={{ p: 4 }}>
+      <Card sx={{ borderRadius: 4, background: heroBg, border: '1px solid rgba(255,255,255,0.08)', mb: 3, overflow: 'hidden', position: 'relative' }}>
+        <WeatherBackground code={data.current.code} />
+        <CardContent sx={{ p: 4, position: 'relative', zIndex: 1 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
             <Box>
               <Typography variant="body2" color="rgba(255,255,255,0.6)" sx={{ letterSpacing: 2, textTransform: 'uppercase', mb: 0.5 }}>
                 📍 {LOCATION}
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography sx={{ fontSize: 96, lineHeight: 1 }}>{curr.emoji}</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <WeatherScene code={data.current.code} />
                 <Box>
                   <Typography sx={{ fontSize: 72, fontWeight: 700, lineHeight: 1 }}>{data.current.temp}°</Typography>
-                  <Typography variant="h5" sx={{ color: 'rgba(255,255,255,0.8)' }}>{curr.label}</Typography>
+                  <Typography variant="h5" sx={{ color: 'rgba(255,255,255,0.85)' }}>{curr.label}</Typography>
                   <Typography variant="body1" color="rgba(255,255,255,0.5)">Feels like {data.current.feels_like}°F</Typography>
                 </Box>
               </Box>
@@ -165,7 +168,7 @@ export default function Weather() {
                 { icon: <Sun size={16}/>, label: `UV Index ${data.current.uv?.toFixed(1) ?? '—'}` },
                 { icon: <Umbrella size={16}/>, label: `${data.current.precip}" Precip` },
               ].map((item) => (
-                <Box key={item.label} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 2, px: 2, py: 0.75 }}>
+                <Box key={item.label} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 2, px: 2, py: 0.75, backdropFilter: 'blur(8px)' }}>
                   <Box sx={{ color: 'rgba(255,255,255,0.7)' }}>{item.icon}</Box>
                   <Typography variant="body2" color="rgba(255,255,255,0.9)">{item.label}</Typography>
                 </Box>
