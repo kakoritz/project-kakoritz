@@ -1,4 +1,4 @@
-name: Build & Push to Docker Hub
+name: Build & Push to GitHub Container Registry
 
 on:
   push:
@@ -7,14 +7,17 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
-        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Build and push
         run: |
-          docker build -t kakoritz/project-kakoritz:latest .
-          docker push kakoritz/project-kakoritz:latest
+          docker build -t ghcr.io/kakoritz/project-kakoritz:latest .
+          docker push ghcr.io/kakoritz/project-kakoritz:latest
