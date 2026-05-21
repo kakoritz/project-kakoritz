@@ -7,11 +7,13 @@ import AppsIcon from '@mui/icons-material/Apps'
 import HomeIcon from '@mui/icons-material/Home'
 import MenuIcon from '@mui/icons-material/Menu'
 import WbSunnyIcon from '@mui/icons-material/WbSunny'
+import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary'
 import Overview from './pages/Overview'
 import LabMonitor from './pages/LabMonitor'
 import Analytics from './pages/Analytics'
 import Portal from './pages/Portal'
 import Weather from './pages/Weather'
+import Gallery from './pages/Gallery'
 
 const theme = createTheme({
   palette: {
@@ -30,6 +32,7 @@ const NAV = [
   { label: 'Lab Monitor', icon: <MonitorHeartIcon />, page: 'lab' },
   { label: 'Analytics', icon: <BarChartIcon />, page: 'analytics' },
   { label: 'App Portal', icon: <AppsIcon />, page: 'portal' },
+  { label: 'Gallery', icon: <PhotoLibraryIcon />, page: 'gallery' },
 ]
 
 export default function App() {
@@ -62,6 +65,7 @@ export default function App() {
       case 'lab': return <LabMonitor />
       case 'analytics': return <Analytics />
       case 'portal': return <Portal />
+      case 'gallery': return <Gallery />
       default: return <Overview />
     }
   }
