@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Box, Typography, Grid, Card, CardContent, CircularProgress, Chip } from '@mui/material'
-import { Wind, Droplets, Eye, Thermometer, Sun, Umbrella, Navigation } from 'lucide-react'
+import { Box, Typography, Grid, Card, CardContent, CircularProgress, Chip, Dialog, DialogContent, IconButton, Slide } from '@mui/material'
+import type { TransitionProps } from '@mui/material/transitions'
+import { forwardRef } from 'react'
+import { Wind, Droplets, Eye, Thermometer, Sun, Umbrella, Navigation, X } from 'lucide-react'
 
 const LAT = 35.37
 const LON = -81.96
@@ -32,43 +34,58 @@ const WMO: Record<number, { label: string; emoji: string; bg: string }> = {
 }
 
 const getWmo = (code: number) => WMO[code] ?? { label: 'Unknown', emoji: '🌡️', bg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' }
-
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function windDir(deg: number) {
   const dirs = ['N','NE','E','SE','S','SW','W','NW']
   return dirs[Math.round(deg / 45) % 8]
 }
 
+const SlideUp = forwardRef(function SlideUp(
+  props: TransitionProps & { children: React.ReactElement },
+  ref: React.Ref<unknown>
+) { return <Slide direction="up" ref={ref} {...props} /> })
+
+interface HourlyEntry {
+  time: string
+  temp: number
+  feels_like: number
+  humidity: number
+  wind_speed: number
+  wind_dir: number
+  precip_prob: number
+  precip: number
+  code: number
+}
+
+interface DayData {
+  date: string
+  max: number
+  min: number
+  precip: number
+  wind_max: number
+  uv_max: number
+  code: number
+}
+
 interface WeatherData {
   current: {
-    temp: number
-    feels_like: number
-    humidity: number
-    wind_speed: number
-    wind_dir: number
-    precip: number
-    uv: number
-    code: number
+    temp: number; feels_like: number; humidity: number
+    wind_speed: number; wind_dir: number; precip: number; uv: number; code: number
   }
-  daily: {
-    date: string
-    max: number
-    min: number
-    precip: number
-    wind_max: number
-    uv_max: number
-    code: number
-  }[]
+  daily: DayData[]
+  hourly: HourlyEntry[]
 }
 
 export default function Weather() {
   const [data, setData] = useState<WeatherData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
 
   const fetchWeather = () => {
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,uv_index_max&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&timezone=America%2FNew_York&forecast_days=5`)
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,uv_index&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,uv_index_max&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&timezone=America%2FNew_York&forecast_days=5`)
       .then(r => r.json())
       .then(json => {
         setData({
@@ -90,6 +107,17 @@ export default function Weather() {
             wind_max: Math.round(json.daily.wind_speed_10m_max[i]),
             uv_max: json.daily.uv_index_max[i],
             code: json.daily.weather_code[i],
+          })),
+          hourly: json.hourly.time.map((time: string, i: number) => ({
+            time,
+            temp: Math.round(json.hourly.temperature_2m[i]),
+            feels_like: Math.round(json.hourly.apparent_temperature[i]),
+            humidity: json.hourly.relative_humidity_2m[i],
+            wind_speed: Math.round(json.hourly.wind_speed_10m[i]),
+            wind_dir: json.hourly.wind_direction_10m[i],
+            precip_prob: json.hourly.precipitation_probability[i],
+            precip: json.hourly.precipitation[i],
+            code: json.hourly.weather_code[i],
           }))
         })
         setLoading(false)
@@ -107,6 +135,9 @@ export default function Weather() {
   if (error || !data) return <Typography color="error">{error}</Typography>
 
   const curr = getWmo(data.current.code)
+  const dayHours = selectedDay ? data.hourly.filter(h => h.time.startsWith(selectedDay.date)) : []
+  const selWmo = selectedDay ? getWmo(selectedDay.code) : null
+  const selDate = selectedDay ? new Date(selectedDay.date + 'T12:00:00') : null
 
   return (
     <Box>
@@ -127,8 +158,6 @@ export default function Weather() {
                 </Box>
               </Box>
             </Box>
-
-            {/* Current detail chips */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, justifyContent: 'center' }}>
               {[
                 { icon: <Droplets size={16}/>, label: `${data.current.humidity}% Humidity` },
@@ -147,15 +176,24 @@ export default function Weather() {
       </Card>
 
       {/* 5-Day Forecast */}
-      <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>5-Day Forecast</Typography>
+      <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>5-Day Forecast</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Tap a day for the full 24-hour breakdown</Typography>
       <Grid container spacing={2}>
         {data.daily.map((day, i) => {
           const wmo = getWmo(day.code)
           const d = new Date(day.date + 'T12:00:00')
-          const label = i === 0 ? 'Today' : DAYS[d.getDay()]
+          const label = i === 0 ? 'Today' : DAYS_SHORT[d.getDay()]
           return (
             <Grid size={{ xs: 12, sm: 6, md: 'grow' }} key={day.date}>
-              <Card sx={{ bgcolor: 'background.paper', borderRadius: 3, border: '1px solid rgba(255,255,255,0.06)', textAlign: 'center', height: '100%' }}>
+              <Card
+                onClick={() => setSelectedDay(day)}
+                sx={{
+                  bgcolor: 'background.paper', borderRadius: 3, textAlign: 'center', height: '100%',
+                  border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  '&:hover': { border: '1px solid rgba(99,102,241,0.6)', transform: 'translateY(-4px)', boxShadow: '0 8px 30px rgba(99,102,241,0.2)' }
+                }}
+              >
                 <CardContent>
                   <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>{label}</Typography>
                   <Typography sx={{ fontSize: 48, my: 1 }}>{wmo.emoji}</Typography>
@@ -176,7 +214,7 @@ export default function Weather() {
         })}
       </Grid>
 
-      {/* Extra stats */}
+      {/* Current Details */}
       <Typography variant="h6" sx={{ fontWeight: 600, mt: 3, mb: 2 }}>Current Details</Typography>
       <Grid container spacing={2}>
         {[
@@ -201,6 +239,92 @@ export default function Weather() {
           </Grid>
         ))}
       </Grid>
+
+      {/* 24-Hour Detail Modal */}
+      <Dialog
+        open={!!selectedDay}
+        onClose={() => setSelectedDay(null)}
+        slots={{ transition: SlideUp }}
+        fullWidth
+        maxWidth="md"
+        slotProps={{ paper: { sx: { bgcolor: '#0f0f1a', borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', backgroundImage: 'none' } } }}
+      >
+        {selectedDay && selWmo && selDate && (
+          <DialogContent sx={{ p: 0 }}>
+            {/* Modal Header */}
+            <Box sx={{ background: selWmo.bg, p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography sx={{ fontSize: 56 }}>{selWmo.emoji}</Typography>
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                    {DAYS[selDate.getDay()]}
+                  </Typography>
+                  <Typography color="rgba(255,255,255,0.7)">
+                    {selDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} · {selWmo.label}
+                  </Typography>
+                  <Typography variant="body2" color="rgba(255,255,255,0.5)">
+                    High {selectedDay.max}° · Low {selectedDay.min}°
+                  </Typography>
+                </Box>
+              </Box>
+              <IconButton onClick={() => setSelectedDay(null)} sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                <X size={24} />
+              </IconButton>
+            </Box>
+
+            {/* Hourly Rows */}
+            <Box sx={{ p: 2, maxHeight: '60vh', overflowY: 'auto' }}>
+              {dayHours.map((hour) => {
+                const hWmo = getWmo(hour.code)
+                const hTime = new Date(hour.time)
+                const h = hTime.getHours()
+                const ampm = h >= 12 ? 'PM' : 'AM'
+                const h12 = h % 12 || 12
+                const isNight = h < 6 || h >= 20
+                return (
+                  <Box
+                    key={hour.time}
+                    sx={{
+                      display: 'flex', alignItems: 'center', gap: 2, p: 1.5, mb: 1,
+                      borderRadius: 2, flexWrap: 'wrap',
+                      bgcolor: isNight ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.04)',
+                      transition: 'background 0.2s',
+                      '&:hover': { bgcolor: 'rgba(99,102,241,0.1)' }
+                    }}
+                  >
+                    {/* Time */}
+                    <Typography sx={{ fontWeight: 600, width: 70, flexShrink: 0, color: isNight ? 'rgba(255,255,255,0.4)' : 'white' }}>
+                      {h12}:00 {ampm}
+                    </Typography>
+
+                    {/* Emoji */}
+                    <Typography sx={{ fontSize: 28, width: 40, flexShrink: 0 }}>{hWmo.emoji}</Typography>
+
+                    {/* Temp */}
+                    <Box sx={{ width: 80, flexShrink: 0 }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: 18 }}>{hour.temp}°F</Typography>
+                      <Typography variant="caption" color="text.secondary">feels {hour.feels_like}°</Typography>
+                    </Box>
+
+                    {/* Condition */}
+                    <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 100 }}>{hWmo.label}</Typography>
+
+                    {/* Stats */}
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <Chip size="small" icon={<Droplets size={10}/>} label={`${hour.humidity}%`} sx={{ fontSize: 10 }} />
+                      <Chip size="small" icon={<Wind size={10}/>} label={`${hour.wind_speed} mph ${windDir(hour.wind_dir)}`} sx={{ fontSize: 10 }} />
+                      {hour.precip_prob > 0 && (
+                        <Chip size="small" icon={<Umbrella size={10}/>} label={`${hour.precip_prob}%`} color="primary" sx={{ fontSize: 10 }} />
+                      )}
+                    </Box>
+                  </Box>
+                )
+              })}
+            </Box>
+          </DialogContent>
+        )}
+      </Dialog>
     </Box>
   )
 }
