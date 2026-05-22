@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Box, Typography, TextField, IconButton, Chip, Tabs, Tab,
   List, ListItem, Checkbox, CircularProgress, Tooltip,
-  Popover, Button, Dialog, DialogTitle, DialogContent, DialogActions,
+  Popover, Button,
 } from '@mui/material'
 import AddIcon          from '@mui/icons-material/Add'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
@@ -17,6 +17,12 @@ const CLAUDE_API = 'http://192.168.1.251:8587'
 const WHO_KEY    = 'kakoritz_who'
 const OLD_KEY    = 'kakoritz_tasks'          // legacy localStorage key
 const POLL_MS    = 30_000
+const NAMES      = ['Adam', 'Kate']
+
+// uid() requires HTTPS — this works on HTTP too
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 9)
+}
 
 const TAG_COLORS: Record<string, string> = {
   work: '#6366f1', personal: '#22c55e', health: '#ef4444',
@@ -264,8 +270,7 @@ export default function Tasks() {
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState('')
   const [myName,     setMyName]     = useState(() => localStorage.getItem(WHO_KEY) ?? '')
-  const [nameDialog, setNameDialog] = useState(false)
-  const [nameInput,  setNameInput]  = useState('')
+  const [nameAnchor, setNameAnchor] = useState<HTMLElement | null>(null)
   const [input,      setInput]      = useState('')
   const [parsing,    setParsing]    = useState(false)
   const [feedback,   setFeedback]   = useState('')
@@ -304,17 +309,15 @@ export default function Tasks() {
     return () => clearInterval(interval)
   }, [loadTasks, myName])
 
-  // open name dialog if no name set
+  // default to Adam on first visit
   useEffect(() => {
-    if (!myName) { setNameInput(''); setNameDialog(true) }
-  }, [myName])
+    if (!myName) pickName('Adam')
+  }, [myName]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const saveName = () => {
-    const n = nameInput.trim()
-    if (!n) return
+  const pickName = (n: string) => {
     localStorage.setItem(WHO_KEY, n)
     setMyName(n)
-    setNameDialog(false)
+    setNameAnchor(null)
     inputRef.current?.focus()
   }
 
@@ -344,7 +347,7 @@ export default function Tasks() {
     }
 
     // New task — add immediately, AI enriches in background (no spinner)
-    const id = crypto.randomUUID()
+    const id = uid()
     const raw: Task = {
       id, title: text, dueDate: offsetDate(1),
       completed: false, isEvent: false, tags: [], who: myName,
@@ -413,18 +416,35 @@ export default function Tasks() {
             Add tasks or say "move dentist to Friday" — shared across all devices.
           </Typography>
         </Box>
-        <Tooltip title="Change your name">
-          <Chip
-            icon={<PersonIcon sx={{ fontSize: '14px !important' }} />}
-            label={myName || 'Set name'}
-            size="small" onClick={() => { setNameInput(myName); setNameDialog(true) }}
-            sx={{ cursor: 'pointer', bgcolor: myName ? `${whoColor(myName)}18` : 'rgba(255,255,255,0.06)',
-              color: myName ? whoColor(myName) : 'text.secondary',
-              border: `1px solid ${myName ? whoColor(myName) + '40' : 'rgba(255,255,255,0.1)'}`,
-              '&:hover': { bgcolor: myName ? `${whoColor(myName)}30` : 'rgba(255,255,255,0.1)' },
-            }}
-          />
-        </Tooltip>
+        <Chip
+          icon={<PersonIcon sx={{ fontSize: '14px !important' }} />}
+          label={myName || 'Who are you?'}
+          size="small" onClick={e => setNameAnchor(e.currentTarget)}
+          sx={{ cursor: 'pointer', bgcolor: myName ? `${whoColor(myName)}18` : 'rgba(255,255,255,0.06)',
+            color: myName ? whoColor(myName) : 'text.secondary',
+            border: `1px solid ${myName ? whoColor(myName) + '40' : 'rgba(255,255,255,0.1)'}`,
+            '&:hover': { bgcolor: myName ? `${whoColor(myName)}30` : 'rgba(255,255,255,0.1)' },
+          }}
+        />
+        <Popover open={Boolean(nameAnchor)} anchorEl={nameAnchor} onClose={() => setNameAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { sx: { bgcolor: '#13131f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, backgroundImage: 'none', p: 1, minWidth: 130 } } }}
+        >
+          <Typography variant="caption" color="text.secondary" sx={{ px: 1, pb: 0.5, display: 'block' }}>You are…</Typography>
+          {NAMES.map(n => (
+            <Button key={n} fullWidth size="small"
+              onClick={() => pickName(n)}
+              sx={{ justifyContent: 'flex-start', borderRadius: 1.5, py: 0.75, fontWeight: myName === n ? 700 : 400,
+                color: myName === n ? whoColor(n) : 'text.secondary',
+                bgcolor: myName === n ? `${whoColor(n)}15` : 'transparent',
+                '&:hover': { bgcolor: `${whoColor(n)}20`, color: whoColor(n) },
+              }}
+            >
+              {myName === n ? '● ' : '○ '}{n}
+            </Button>
+          ))}
+        </Popover>
       </Box>
 
       {/* Today people summary */}
@@ -527,30 +547,6 @@ export default function Tasks() {
         </List>
       )}
 
-      {/* Name setup dialog */}
-      <Dialog open={nameDialog} onClose={() => myName && setNameDialog(false)} maxWidth="xs" fullWidth
-        slotProps={{ paper: { sx: { bgcolor: '#0f0f1a', borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', backgroundImage: 'none' } } }}
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>Who are you on this device?</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            This lets you and your wife see whose tasks are whose. Set it once per device.
-          </Typography>
-          <TextField autoFocus fullWidth placeholder="e.g. Adam or Kate"
-            value={nameInput} onChange={e => setNameInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') saveName() }}
-            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' }, '&.Mui-focused fieldset': { borderColor: 'primary.main' } } }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          {myName && <Button onClick={() => setNameDialog(false)} sx={{ color: 'text.secondary' }}>Cancel</Button>}
-          <Button onClick={saveName} disabled={!nameInput.trim()} variant="contained"
-            sx={{ borderRadius: 2, bgcolor: 'primary.main', '&:hover': { bgcolor: '#4f52d9' } }}
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   )
 }
