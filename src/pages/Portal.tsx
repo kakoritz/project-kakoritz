@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { Grid, Card, CardContent, Typography, Box, IconButton, Dialog, DialogContent, DialogTitle, List, ListItem, ListItemButton, ListItemText, Chip } from '@mui/material'
+import {
+  Grid, Card, CardContent, Typography, Box, IconButton,
+  Dialog, DialogContent, DialogTitle, List, ListItem,
+  ListItemButton, ListItemText,
+} from '@mui/material'
 import StorageIcon from '@mui/icons-material/Storage'
 import CodeIcon from '@mui/icons-material/Code'
 import RouterIcon from '@mui/icons-material/Router'
@@ -10,62 +14,135 @@ import EmailIcon from '@mui/icons-material/Email'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import CloseIcon from '@mui/icons-material/Close'
 
-const APPS = [
-  { name: 'Synology DSM',      desc: 'NAS management',     url: 'http://192.168.1.251:5000', icon: <StorageIcon fontSize="large" />,   color: '#6366f1' },
-  { name: 'AdGuard Home',      desc: 'DNS & ad blocking',  url: 'http://192.168.1.251:3001', icon: <SecurityIcon fontSize="large" />,  color: '#22c55e' },
-  { name: 'Container Manager', desc: 'Docker on NAS',      url: 'http://192.168.1.251:5000', icon: <Inventory2Icon fontSize="large" />,color: '#38bdf8' },
-  { name: 'GitHub Actions',    desc: 'project-kakoritz workflows', url: 'https://github.com/kakoritz/project-kakoritz/actions', icon: <CodeIcon fontSize="large" />, color: '#a78bfa' },
-  { name: 'Router',            desc: 'Network admin',      url: 'http://192.168.1.1',        icon: <RouterIcon fontSize="large" />,   color: '#f59e0b' },
-]
+// ── Data ─────────────────────────────────────────────────────────────────────
 
-const BANK_ACCOUNTS = [
-  { label: 'PNC Bank',    url: 'https://www.pnc.com/',            appScheme: 'pnc://',      color: '#f59e0b' },
-  { label: 'Wells Fargo', url: 'https://www.wellsfargo.com/',     appScheme: 'wellsfargo://',color: '#dc2626' },
-  { label: 'Venmo',       url: 'https://venmo.com/',              appScheme: 'venmo://',    color: '#38bdf8' },
-  { label: 'Cash App',    url: 'https://cash.app/',               appScheme: 'cashme://',   color: '#22c55e' },
-  { label: 'Chime',       url: 'https://www.chime.com/',          appScheme: 'chime://',    color: '#a78bfa' },
+const APPS = [
+  { name: 'Synology DSM',    desc: 'NAS',          url: 'http://192.168.1.251:5000',                             icon: <StorageIcon />,    color: '#6366f1' },
+  { name: 'AdGuard Home',    desc: 'DNS',           url: 'http://192.168.1.251:3001',                             icon: <SecurityIcon />,   color: '#22c55e' },
+  { name: 'Containers',      desc: 'Docker',        url: 'http://192.168.1.251:5000',                             icon: <Inventory2Icon />, color: '#38bdf8' },
+  { name: 'Actions',         desc: 'GitHub CI',     url: 'https://github.com/kakoritz/project-kakoritz/actions', icon: <CodeIcon />,       color: '#a78bfa' },
+  { name: 'Router',          desc: 'Network',       url: 'http://192.168.1.1',                                    icon: <RouterIcon />,     color: '#f59e0b' },
 ]
 
 const EMAIL_ACCOUNTS = [
-  { label: 'Decked Out Games',       email: 'aspiker@deckedoutgames.com',        color: '#6366f1' },
-  { label: 'Decked Out Publishing',  email: 'aspiker@deckedoutpublishing.com',   color: '#22c55e' },
-  { label: 'Personal',               email: 'adam@adamscottspiker.org',          color: '#38bdf8' },
-  { label: 'Pander Hollow Ministries', email: 'support@panderhollowministries.org', color: '#f59e0b' },
+  { label: 'Decked Out Games',         email: 'aspiker@deckedoutgames.com',        color: '#6366f1' },
+  { label: 'Decked Out Publishing',    email: 'aspiker@deckedoutpublishing.com',   color: '#22c55e' },
+  { label: 'Personal',                 email: 'adam@adamscottspiker.org',          color: '#38bdf8' },
+  { label: 'Pander Hollow Ministries', email: 'support@panderhollowministries.org',color: '#f59e0b' },
 ]
 
-function AppCard({ name, desc, url, icon, color }: typeof APPS[0]) {
+const BANK_ACCOUNTS = [
+  { label: 'PNC Bank',    url: 'https://www.pnc.com/',          appScheme: 'pnc://',       color: '#f59e0b' },
+  { label: 'Wells Fargo', url: 'https://www.wellsfargo.com/',   appScheme: 'wellsfargo://',color: '#dc2626' },
+  { label: 'Venmo',       url: 'https://venmo.com/',            appScheme: 'venmo://',     color: '#38bdf8' },
+  { label: 'Cash App',    url: 'https://cash.app/',             appScheme: 'cashme://',    color: '#22c55e' },
+  { label: 'Chime',       url: 'https://www.chime.com/',        appScheme: 'chime://',     color: '#a78bfa' },
+]
+
+// ── Icon card ─────────────────────────────────────────────────────────────────
+
+function IconCard({
+  name, desc, color, icon, onClick, badge,
+}: {
+  name: string; desc: string; color: string
+  icon: React.ReactNode; onClick: () => void; badge?: number
+}) {
   return (
     <Card
-      onClick={() => window.open(url, '_blank')}
+      onClick={onClick}
       sx={{
-        bgcolor: 'background.paper', borderRadius: 3, height: '100%',
-        border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-        '&:hover': { borderColor: color, boxShadow: `0 4px 24px ${color}20` },
+        bgcolor: 'background.paper', borderRadius: 3,
+        border: '1px solid rgba(255,255,255,0.06)',
+        cursor: 'pointer',
+        transition: 'transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s',
+        '&:hover': {
+          transform: 'translateY(-3px)',
+          boxShadow: `0 10px 28px ${color}28`,
+          borderColor: `${color}55`,
+        },
+        '&:active': { transform: 'scale(0.95)' },
       }}
     >
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: `${color}1a`, border: `1px solid ${color}30`, color, mb: 2 }}>
+      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, textAlign: 'center', '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+        {/* Icon with optional badge */}
+        <Box sx={{ position: 'relative', display: 'inline-flex', mb: 1 }}>
+          <Box sx={{
+            width: { xs: 52, sm: 60 }, height: { xs: 52, sm: 60 },
+            borderRadius: 3,
+            background: `linear-gradient(135deg, ${color}38 0%, ${color}18 100%)`,
+            border: `1px solid ${color}38`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color,
+            '& svg': { fontSize: { xs: 26, sm: 30 } },
+          }}>
             {icon}
           </Box>
-          <IconButton size="small" sx={{ color: 'text.secondary' }}>
-            <OpenInNewIcon fontSize="small" />
-          </IconButton>
+          {badge !== undefined && (
+            <Box sx={{
+              position: 'absolute', top: -5, right: -6,
+              bgcolor: color, color: 'white',
+              borderRadius: 10, px: 0.75,
+              fontSize: 10, fontWeight: 800, lineHeight: '18px',
+              minWidth: 18, textAlign: 'center',
+              border: '2px solid #0a0a14',
+            }}>
+              {badge}
+            </Box>
+          )}
         </Box>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>{name}</Typography>
-        <Typography variant="body2" color="text.secondary">{desc}</Typography>
+        {/* Name */}
+        <Typography sx={{
+          fontWeight: 700, fontSize: { xs: 11, sm: 12 }, lineHeight: 1.25,
+          display: 'block', mb: 0.25,
+        }}>
+          {name}
+        </Typography>
+        {/* Desc */}
+        <Typography sx={{ fontSize: { xs: 10, sm: 11 }, color: 'text.secondary', lineHeight: 1.2 }}>
+          {desc}
+        </Typography>
       </CardContent>
     </Card>
   )
 }
 
+// ── Picker dialog ─────────────────────────────────────────────────────────────
+
+function PickerDialog({
+  open, onClose, title, titleColor, titleIcon, children,
+}: {
+  open: boolean; onClose: () => void
+  title: string; titleColor: string; titleIcon: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <Dialog
+      open={open} onClose={onClose} maxWidth="xs" fullWidth
+      slotProps={{ paper: { sx: { bgcolor: '#0f0f1a', borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', backgroundImage: 'none' } } }}
+    >
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: `${titleColor}20`, color: titleColor, display: 'flex' }}>
+            {titleIcon}
+          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>{title}</Typography>
+        </Box>
+        <IconButton size="small" onClick={onClose} sx={{ color: 'text.secondary' }}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ p: 1, pb: 2 }}>{children}</DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function Portal() {
   const [emailOpen, setEmailOpen] = useState(false)
-  const [bankOpen, setBankOpen] = useState(false)
+  const [bankOpen,  setBankOpen]  = useState(false)
 
   function openBank(appScheme: string, webUrl: string) {
-    // Try native app first; fall back to web after 1.5s if app isn't installed
     window.location.href = appScheme
     setTimeout(() => window.open(webUrl, '_blank'), 1500)
     setBankOpen(false)
@@ -74,193 +151,90 @@ export default function Portal() {
   return (
     <Box>
       <Typography variant="h4" sx={{ fontWeight: 700 }} gutterBottom>App Portal</Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>Quick access to your tools and services.</Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>Quick access to your tools and services.</Typography>
 
-      <Grid container spacing={3}>
-        {/* App cards */}
+      <Grid container spacing={{ xs: 1.5, sm: 2 }}>
+
+        {/* Regular app icons */}
         {APPS.map((app) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={app.name}>
-            <AppCard {...app} />
+          <Grid size={{ xs: 4, sm: 3, md: 2 }} key={app.name}>
+            <IconCard
+              name={app.name} desc={app.desc} color={app.color} icon={app.icon}
+              onClick={() => window.open(app.url, '_blank')}
+            />
           </Grid>
         ))}
 
-        {/* Bank card */}
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <Card
+        {/* Banking icon */}
+        <Grid size={{ xs: 4, sm: 3, md: 2 }}>
+          <IconCard
+            name="Banking" desc="5 accounts" color="#22c55e"
+            icon={<AccountBalanceIcon />} badge={BANK_ACCOUNTS.length}
             onClick={() => setBankOpen(true)}
-            sx={{
-              bgcolor: 'background.paper', borderRadius: 3, height: '100%',
-              border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer',
-              transition: 'border-color 0.2s, box-shadow 0.2s',
-              '&:hover': { borderColor: '#22c55e', boxShadow: '0 4px 24px rgba(34,197,94,0.15)' },
-            }}
-          >
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e', mb: 2 }}>
-                  <AccountBalanceIcon fontSize="large" />
-                </Box>
-                <Chip label={`${BANK_ACCOUNTS.length}`} size="small" sx={{ bgcolor: 'rgba(34,197,94,0.15)', color: '#22c55e', fontSize: 11, fontWeight: 700 }} />
-              </Box>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>Banking</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {BANK_ACCOUNTS.length} accounts · opens app if installed
-              </Typography>
-            </CardContent>
-          </Card>
+          />
         </Grid>
 
-        {/* Email card */}
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <Card
+        {/* Email icon */}
+        <Grid size={{ xs: 4, sm: 3, md: 2 }}>
+          <IconCard
+            name="Email" desc="4 accounts" color="#fb923c"
+            icon={<EmailIcon />} badge={EMAIL_ACCOUNTS.length}
             onClick={() => setEmailOpen(true)}
-            sx={{
-              bgcolor: 'background.paper', borderRadius: 3, height: '100%',
-              border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer',
-              transition: 'border-color 0.2s, box-shadow 0.2s',
-              '&:hover': { borderColor: '#fb923c', boxShadow: '0 4px 24px rgba(251,146,60,0.15)' },
-            }}
-          >
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.25)', color: '#fb923c', mb: 2 }}>
-                  <EmailIcon fontSize="large" />
-                </Box>
-                <Chip label={`${EMAIL_ACCOUNTS.length}`} size="small" sx={{ bgcolor: 'rgba(251,146,60,0.15)', color: '#fb923c', fontSize: 11, fontWeight: 700 }} />
-              </Box>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>Email</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {EMAIL_ACCOUNTS.length} accounts · tap to choose
-              </Typography>
-            </CardContent>
-          </Card>
+          />
         </Grid>
+
       </Grid>
 
-      {/* Email account picker */}
-      <Dialog
-        open={emailOpen}
-        onClose={() => setEmailOpen(false)}
-        maxWidth="xs"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              bgcolor: '#0f0f1a', borderRadius: 3,
-              border: '1px solid rgba(255,255,255,0.08)',
-              backgroundImage: 'none',
-            }
-          }
-        }}
+      {/* Email picker */}
+      <PickerDialog
+        open={emailOpen} onClose={() => setEmailOpen(false)}
+        title="Choose Account" titleColor="#fb923c" titleIcon={<EmailIcon fontSize="small" />}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(251,146,60,0.15)', color: '#fb923c', display: 'flex' }}>
-              <EmailIcon fontSize="small" />
-            </Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Choose Account</Typography>
-          </Box>
-          <IconButton size="small" onClick={() => setEmailOpen(false)} sx={{ color: 'text.secondary' }}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-
-        <DialogContent sx={{ p: 1, pb: 2 }}>
-          <List disablePadding>
-            {EMAIL_ACCOUNTS.map((account) => (
-              <ListItem key={account.email} disablePadding sx={{ mb: 0.5 }}>
-                <ListItemButton
-                  onClick={() => {
-                    window.open(`https://outlook.cloud.microsoft/mail/${account.email}/`, '_blank')
-                    setEmailOpen(false)
-                  }}
-                  sx={{
-                    borderRadius: 2,
-                    border: '1px solid rgba(255,255,255,0.04)',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      bgcolor: `${account.color}15`,
-                      border: `1px solid ${account.color}40`,
-                    },
-                  }}
-                >
-                  {/* Color dot */}
-                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: account.color, mr: 2, flexShrink: 0 }} />
-                  <ListItemText
-                    primary={account.label}
-                    secondary={account.email}
-                    slotProps={{
-                      primary: { style: { fontWeight: 600, fontSize: 14 } },
-                      secondary: { style: { fontSize: 12, opacity: 0.6 } },
-                    }}
-                  />
-                  <OpenInNewIcon sx={{ fontSize: 14, color: 'text.secondary', ml: 1 }} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-        </DialogContent>
-      </Dialog>
+        <List disablePadding>
+          {EMAIL_ACCOUNTS.map((account) => (
+            <ListItem key={account.email} disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                onClick={() => { window.open(`https://outlook.cloud.microsoft/mail/${account.email}/`, '_blank'); setEmailOpen(false) }}
+                sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.04)', transition: 'all 0.2s', '&:hover': { bgcolor: `${account.color}15`, border: `1px solid ${account.color}40` } }}
+              >
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: account.color, mr: 2, flexShrink: 0 }} />
+                <ListItemText
+                  primary={account.label} secondary={account.email}
+                  slotProps={{ primary: { style: { fontWeight: 600, fontSize: 14 } }, secondary: { style: { fontSize: 12, opacity: 0.6 } } }}
+                />
+                <OpenInNewIcon sx={{ fontSize: 14, color: 'text.secondary', ml: 1 }} />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      </PickerDialog>
 
       {/* Bank picker */}
-      <Dialog
-        open={bankOpen}
-        onClose={() => setBankOpen(false)}
-        maxWidth="xs"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              bgcolor: '#0f0f1a', borderRadius: 3,
-              border: '1px solid rgba(255,255,255,0.08)',
-              backgroundImage: 'none',
-            }
-          }
-        }}
+      <PickerDialog
+        open={bankOpen} onClose={() => setBankOpen(false)}
+        title="Banking" titleColor="#22c55e" titleIcon={<AccountBalanceIcon fontSize="small" />}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(34,197,94,0.15)', color: '#22c55e', display: 'flex' }}>
-              <AccountBalanceIcon fontSize="small" />
-            </Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Banking</Typography>
-          </Box>
-          <IconButton size="small" onClick={() => setBankOpen(false)} sx={{ color: 'text.secondary' }}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-
-        <DialogContent sx={{ p: 1, pb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ px: 1, mb: 1, display: 'block' }}>
-            Opens native app if installed, otherwise opens in browser
-          </Typography>
-          <List disablePadding>
-            {BANK_ACCOUNTS.map((bank) => (
-              <ListItem key={bank.label} disablePadding sx={{ mb: 0.5 }}>
-                <ListItemButton
-                  onClick={() => openBank(bank.appScheme, bank.url)}
-                  sx={{
-                    borderRadius: 2,
-                    border: '1px solid rgba(255,255,255,0.04)',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      bgcolor: `${bank.color}15`,
-                      border: `1px solid ${bank.color}40`,
-                    },
-                  }}
-                >
-                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: bank.color, mr: 2, flexShrink: 0 }} />
-                  <ListItemText
-                    primary={bank.label}
-                    slotProps={{ primary: { style: { fontWeight: 600, fontSize: 14 } } }}
-                  />
-                  <OpenInNewIcon sx={{ fontSize: 14, color: 'text.secondary', ml: 1 }} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-        </DialogContent>
-      </Dialog>
+        <Typography variant="caption" color="text.secondary" sx={{ px: 1, mb: 1, display: 'block' }}>
+          Opens native app if installed, otherwise browser
+        </Typography>
+        <List disablePadding>
+          {BANK_ACCOUNTS.map((bank) => (
+            <ListItem key={bank.label} disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                onClick={() => openBank(bank.appScheme, bank.url)}
+                sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.04)', transition: 'all 0.2s', '&:hover': { bgcolor: `${bank.color}15`, border: `1px solid ${bank.color}40` } }}
+              >
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: bank.color, mr: 2, flexShrink: 0 }} />
+                <ListItemText
+                  primary={bank.label}
+                  slotProps={{ primary: { style: { fontWeight: 600, fontSize: 14 } } }}
+                />
+                <OpenInNewIcon sx={{ fontSize: 14, color: 'text.secondary', ml: 1 }} />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      </PickerDialog>
     </Box>
   )
 }
