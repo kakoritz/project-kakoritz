@@ -191,7 +191,7 @@ export default function Tasks() {
           <TextField
             inputRef={inputRef}
             fullWidth
-            placeholder='Try "dentist Thursday" or "Sophia\'s birthday June 15"'
+            placeholder={`Try "dentist Thursday" or "Sophia's birthday June 15"`}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void addTask() } }}
