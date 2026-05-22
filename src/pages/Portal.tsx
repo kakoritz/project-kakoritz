@@ -14,7 +14,7 @@ const APPS = [
   { name: 'Synology DSM',      desc: 'NAS management',     url: 'http://192.168.1.251:5000', icon: <StorageIcon fontSize="large" />,   color: '#6366f1' },
   { name: 'AdGuard Home',      desc: 'DNS & ad blocking',  url: 'http://192.168.1.251:3001', icon: <SecurityIcon fontSize="large" />,  color: '#22c55e' },
   { name: 'Container Manager', desc: 'Docker on NAS',      url: 'http://192.168.1.251:5000', icon: <Inventory2Icon fontSize="large" />,color: '#38bdf8' },
-  { name: 'GitHub',            desc: 'kakoritz repos',     url: 'https://github.com/kakoritz', icon: <CodeIcon fontSize="large" />,   color: '#a78bfa' },
+  { name: 'GitHub Actions',    desc: 'project-kakoritz workflows', url: 'https://github.com/kakoritz/project-kakoritz/actions', icon: <CodeIcon fontSize="large" />, color: '#a78bfa' },
   { name: 'Router',            desc: 'Network admin',      url: 'http://192.168.1.1',        icon: <RouterIcon fontSize="large" />,   color: '#f59e0b' },
 ]
 
