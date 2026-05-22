@@ -5,9 +5,19 @@ const path = require('path')
 
 const app = express()
 app.use(cors())
+app.use(express.json())
 
-const ROOT = process.env.PHOTOS_ROOT || '/photos'
+const ROOT       = process.env.PHOTOS_ROOT || '/photos'
+const TASKS_FILE = process.env.TASKS_FILE  || path.join(ROOT, 'kakoritz_tasks.json')
 const IMAGE_EXTS = /\.(jpg|jpeg|png|gif|webp|bmp)$/i
+
+// ── Task helpers ──────────────────────────────────────────────────────────────
+function readTasks() {
+  try { return JSON.parse(fs.readFileSync(TASKS_FILE, 'utf8')) } catch { return [] }
+}
+function writeTasks(tasks) {
+  fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2))
+}
 
 const CATEGORIES = {
   jaxson:    { label: 'Jaxson',     emoji: '👦', folders: ['Jaxson'] },
@@ -74,6 +84,31 @@ app.use('/photos', (req, res) => {
   const filePath = path.join(ROOT, decodeURIComponent(req.path))
   if (!filePath.startsWith(ROOT)) return res.status(403).send('Forbidden')
   res.sendFile(filePath)
+})
+
+// ── Task routes ───────────────────────────────────────────────────────────────
+app.get('/api/tasks', (_, res) => res.json(readTasks()))
+
+app.post('/api/tasks', (req, res) => {
+  const tasks = readTasks()
+  const task  = { createdAt: new Date().toISOString(), ...req.body }
+  tasks.push(task)
+  writeTasks(tasks)
+  res.json(task)
+})
+
+app.put('/api/tasks/:id', (req, res) => {
+  const tasks = readTasks()
+  const i     = tasks.findIndex(t => t.id === req.params.id)
+  if (i === -1) return res.status(404).json({ error: 'Not found' })
+  tasks[i] = { ...tasks[i], ...req.body }
+  writeTasks(tasks)
+  res.json(tasks[i])
+})
+
+app.delete('/api/tasks/:id', (req, res) => {
+  writeTasks(readTasks().filter(t => t.id !== req.params.id))
+  res.json({ ok: true })
 })
 
 app.get('/health', (_, res) => res.json({ status: 'ok', root: ROOT }))
