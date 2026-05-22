@@ -19,7 +19,7 @@ jobs:
 
       - name: Build and push dashboard
         run: |
-          docker build -t ghcr.io/kakoritz/project-kakoritz:latest .
+          docker build --progress=plain -t ghcr.io/kakoritz/project-kakoritz:latest .
           docker push ghcr.io/kakoritz/project-kakoritz:latest
 
   build-photo-api:
