@@ -6,7 +6,7 @@ import {
 import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined'
 
 const STORAGE_KEY = 'kakoritz_tasks'
 const CLAUDE_API = 'http://192.168.1.251:8587'
