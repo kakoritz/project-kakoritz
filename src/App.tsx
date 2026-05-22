@@ -6,17 +6,11 @@ import {
   BottomNavigation, BottomNavigationAction, Paper,
 } from '@mui/material'
 import DashboardIcon from '@mui/icons-material/Dashboard'
-import MonitorHeartIcon from '@mui/icons-material/MonitorHeart'
-import BarChartIcon from '@mui/icons-material/BarChart'
 import AppsIcon from '@mui/icons-material/Apps'
-import HomeIcon from '@mui/icons-material/Home'
 import WbSunnyIcon from '@mui/icons-material/WbSunny'
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
 import ChecklistIcon from '@mui/icons-material/Checklist'
-import Overview from './pages/Overview'
-import LabMonitor from './pages/LabMonitor'
-import Analytics from './pages/Analytics'
 import Portal from './pages/Portal'
 import Weather from './pages/Weather'
 import Gallery from './pages/Gallery'
@@ -49,18 +43,15 @@ const theme = createTheme({
 const DRAWER_WIDTH = 220
 
 const NAV = [
-  { label: 'Overview',    mobileLabel: 'Home',    icon: <HomeIcon />,         page: 'overview'  },
-  { label: 'Weather',     mobileLabel: 'Weather', icon: <WbSunnyIcon />,      page: 'weather'   },
-  { label: 'Lab Monitor', mobileLabel: 'Lab',     icon: <MonitorHeartIcon />, page: 'lab',       hideMobile: true },
-  { label: 'Analytics',   mobileLabel: 'Stats',   icon: <BarChartIcon />,     page: 'analytics', hideMobile: true },
-  { label: 'App Portal',  mobileLabel: 'Apps',    icon: <AppsIcon />,         page: 'portal'    },
-  { label: 'Gallery',     mobileLabel: 'Gallery', icon: <PhotoLibraryIcon />, page: 'gallery'   },
-  { label: 'Claude AI',   mobileLabel: 'AI',      icon: <SmartToyIcon />,     page: 'claude'    },
-  { label: 'Tasks',       mobileLabel: 'Tasks',   icon: <ChecklistIcon />,    page: 'tasks'     },
+  { label: 'Apps',      mobileLabel: 'Apps',    icon: <AppsIcon />,         page: 'portal'  },
+  { label: 'Weather',   mobileLabel: 'Weather', icon: <WbSunnyIcon />,      page: 'weather' },
+  { label: 'Gallery',   mobileLabel: 'Gallery', icon: <PhotoLibraryIcon />, page: 'gallery' },
+  { label: 'Claude AI', mobileLabel: 'AI',      icon: <SmartToyIcon />,     page: 'claude'  },
+  { label: 'Tasks',     mobileLabel: 'Tasks',   icon: <ChecklistIcon />,    page: 'tasks'   },
 ]
 
 export default function App() {
-  const [page, setPage] = useState('overview')
+  const [page, setPage] = useState('portal')
 
   const sideNav = (
     <Box sx={{ mt: 8 }}>
@@ -94,15 +85,12 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'overview':  return <Overview />
-      case 'weather':   return <Weather />
-      case 'lab':       return <LabMonitor />
-      case 'analytics': return <Analytics />
-      case 'portal':    return <Portal />
-      case 'gallery':   return <Gallery />
-      case 'claude':    return <ClaudeChat />
-      case 'tasks':     return <Tasks />
-      default:          return <Overview />
+      case 'portal':  return <Portal />
+      case 'weather': return <Weather />
+      case 'gallery': return <Gallery />
+      case 'claude':  return <ClaudeChat />
+      case 'tasks':   return <Tasks />
+      default:        return <Portal />
     }
   }
 
@@ -166,7 +154,6 @@ export default function App() {
             minHeight: '100vh',
             bgcolor: 'background.default',
             backgroundImage: 'radial-gradient(circle at 20% 0%, rgba(99,102,241,0.04) 0%, transparent 60%)',
-            // Extra bottom padding on mobile so content clears the tab bar + safe area
             pb: { xs: 'calc(58px + env(safe-area-inset-bottom) + 16px)', sm: 3 },
           }}
         >
@@ -191,12 +178,9 @@ export default function App() {
           <BottomNavigation
             value={page}
             onChange={(_, v) => setPage(v)}
-            sx={{
-              bgcolor: 'transparent',
-              height: 58,
-            }}
+            sx={{ bgcolor: 'transparent', height: 58 }}
           >
-            {NAV.filter(item => !item.hideMobile).map((item) => (
+            {NAV.map((item) => (
               <BottomNavigationAction
                 key={item.page}
                 value={item.page}
@@ -208,9 +192,7 @@ export default function App() {
                   minWidth: 0,
                   px: 0.5,
                   transition: 'color 0.2s ease',
-                  '&.Mui-selected': {
-                    color: '#6366f1',
-                  },
+                  '&.Mui-selected': { color: '#6366f1' },
                   '& .MuiBottomNavigationAction-label': {
                     fontSize: 10,
                     mt: 0.25,
