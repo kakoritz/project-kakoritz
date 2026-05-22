@@ -32,11 +32,11 @@ const EMAIL_ACCOUNTS = [
 ]
 
 const BANK_ACCOUNTS = [
-  { label: 'PNC Bank',    url: 'https://www.pnc.com/',          appScheme: 'pnc://',       color: '#f59e0b' },
-  { label: 'Wells Fargo', url: 'https://www.wellsfargo.com/',   appScheme: 'wellsfargo://',color: '#dc2626' },
-  { label: 'Venmo',       url: 'https://venmo.com/',            appScheme: 'venmo://',     color: '#38bdf8' },
-  { label: 'Cash App',    url: 'https://cash.app/',             appScheme: 'cashme://',    color: '#22c55e' },
-  { label: 'Chime',       url: 'https://www.chime.com/',        appScheme: 'chime://',     color: '#a78bfa' },
+  { label: 'PNC Bank',    url: 'https://www.pnc.com/',        color: '#f59e0b' },
+  { label: 'Wells Fargo', url: 'https://www.wellsfargo.com/', color: '#dc2626' },
+  { label: 'Venmo',       url: 'https://venmo.com/',          color: '#38bdf8' },
+  { label: 'Cash App',    url: 'https://cash.app/',           color: '#22c55e' },
+  { label: 'Chime',       url: 'https://www.chime.com/',      color: '#a78bfa' },
 ]
 
 // ── Icon card ─────────────────────────────────────────────────────────────────
@@ -142,9 +142,8 @@ export default function Portal() {
   const [emailOpen, setEmailOpen] = useState(false)
   const [bankOpen,  setBankOpen]  = useState(false)
 
-  function openBank(appScheme: string, webUrl: string) {
-    window.location.href = appScheme
-    setTimeout(() => window.open(webUrl, '_blank'), 1500)
+  function openBank(url: string) {
+    window.open(url, '_blank')
     setBankOpen(false)
   }
 
@@ -215,13 +214,13 @@ export default function Portal() {
         title="Banking" titleColor="#22c55e" titleIcon={<AccountBalanceIcon fontSize="small" />}
       >
         <Typography variant="caption" color="text.secondary" sx={{ px: 1, mb: 1, display: 'block' }}>
-          Opens native app if installed, otherwise browser
+          Your phone will open the app automatically if installed
         </Typography>
         <List disablePadding>
           {BANK_ACCOUNTS.map((bank) => (
             <ListItem key={bank.label} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
-                onClick={() => openBank(bank.appScheme, bank.url)}
+                onClick={() => openBank(bank.url)}
                 sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.04)', transition: 'all 0.2s', '&:hover': { bgcolor: `${bank.color}15`, border: `1px solid ${bank.color}40` } }}
               >
                 <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: bank.color, mr: 2, flexShrink: 0 }} />
