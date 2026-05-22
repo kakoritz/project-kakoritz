@@ -168,8 +168,17 @@ export default function Weather() {
 
   return (
     <Box>
-      {/* Hero */}
-      <Card sx={{ borderRadius: 4, background: heroBg, border: '1px solid rgba(255,255,255,0.08)', mb: 3, overflow: 'hidden', position: 'relative' }}>
+      {/* Hero — click to open today's hourly breakdown */}
+      <Card
+        onClick={() => setSelectedDay(data.daily[0])}
+        sx={{
+          borderRadius: 4, background: heroBg, border: '1px solid rgba(255,255,255,0.08)',
+          mb: 3, overflow: 'hidden', position: 'relative',
+          cursor: 'pointer',
+          transition: 'box-shadow 0.2s ease',
+          '&:hover': { boxShadow: '0 0 0 1px rgba(255,255,255,0.18), 0 8px 32px rgba(0,0,0,0.4)' },
+        }}
+      >
         <CardContent sx={{ p: 4 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
             <Box>
