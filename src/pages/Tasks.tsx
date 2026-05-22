@@ -98,7 +98,9 @@ const api = {
 
 // ── AI ────────────────────────────────────────────────────────────────────────
 
-async function callAI(input: string, tasks: Task[], myName: string): Promise<AIResult> {
+const CMD_RE = /^(move|reschedule|change|update|mark|tag|push|shift|cancel|delete|remove)\s/i
+
+async function callAI(input: string, tasks: Task[], myName: string, signal?: AbortSignal): Promise<AIResult> {
   const tomorrow = offsetDate(1)
   const taskList = tasks.slice(0, 30).map(t =>
     `id:${t.id} who:"${t.who}" "${t.title}" due:${t.dueDate} tags:[${t.tags.join(',')}]`
@@ -125,6 +127,7 @@ Input: ${input}`
   const res = await fetch(`${CLAUDE_API}/api/chat`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }),
+    signal,
   })
   if (!res.ok || !res.body) throw new Error('API error')
 
@@ -145,6 +148,15 @@ Input: ${input}`
   const s = full.indexOf('{'), e = full.lastIndexOf('}')
   if (s !== -1 && e !== -1) return JSON.parse(full.slice(s, e + 1)) as AIResult
   return { type: 'unknown' }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), ms)
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise<T>((_, rej) => ctrl.signal.addEventListener('abort', () => rej(new Error('timeout')))),
+  ])
 }
 
 // ── Date picker popover ───────────────────────────────────────────────────────
@@ -310,47 +322,53 @@ export default function Tasks() {
   const submit = async () => {
     const text = input.trim()
     if (!text || parsing || !myName) return
-    setInput(''); setParsing(true); setFeedback('')
+    setInput(''); setFeedback('')
 
-    try {
-      const result = await callAI(text, tasks, myName)
+    const isCommand = CMD_RE.test(text)
 
-      if (result.type === 'add') {
-        const newTask: Omit<Task, 'createdAt'> = {
-          id:        crypto.randomUUID(),
-          title:     result.title,
-          dueDate:   result.dueDate ?? offsetDate(1),
-          completed: false,
-          isEvent:   result.isEvent,
-          tags:      result.tags ?? [],
-          who:       result.who ?? myName,
+    if (isCommand) {
+      // Commands (move/reschedule/etc.) — brief spinner, AI with timeout
+      setParsing(true)
+      try {
+        const result = await withTimeout(callAI(text, tasks, myName), 10_000)
+        if (result.type === 'update') {
+          setTasks(prev => prev.map(t => t.id === result.taskId ? { ...t, ...result.changes } : t))
+          await api.update(result.taskId, result.changes).catch(() => {})
+          setFeedback('Task updated')
+          setTimeout(() => setFeedback(''), 2500)
         }
-        setTasks(prev => [{ ...newTask, createdAt: new Date().toISOString() }, ...prev])
-        await api.create(newTask)
-      } else if (result.type === 'update') {
-        setTasks(prev => prev.map(t => t.id === result.taskId ? { ...t, ...result.changes } : t))
-        await api.update(result.taskId, result.changes)
-        setFeedback('Task updated')
-        setTimeout(() => setFeedback(''), 2500)
-      } else {
-        const newTask: Omit<Task, 'createdAt'> = {
-          id: crypto.randomUUID(), title: text, dueDate: offsetDate(1),
-          completed: false, isEvent: false, tags: [], who: myName,
-        }
-        setTasks(prev => [{ ...newTask, createdAt: new Date().toISOString() }, ...prev])
-        await api.create(newTask)
-      }
-    } catch {
-      const newTask: Omit<Task, 'createdAt'> = {
-        id: crypto.randomUUID(), title: text, dueDate: offsetDate(1),
-        completed: false, isEvent: false, tags: [], who: myName,
-      }
-      setTasks(prev => [{ ...newTask, createdAt: new Date().toISOString() }, ...prev])
-      await api.create(newTask).catch(() => {})
+      } catch { /* timeout or AI failure — silently ignore */ }
+      setParsing(false)
+      inputRef.current?.focus()
+      return
     }
 
-    setParsing(false)
+    // New task — add immediately, AI enriches in background (no spinner)
+    const id = crypto.randomUUID()
+    const raw: Task = {
+      id, title: text, dueDate: offsetDate(1),
+      completed: false, isEvent: false, tags: [], who: myName,
+      createdAt: new Date().toISOString(),
+    }
+    setTasks(prev => [raw, ...prev])
     inputRef.current?.focus()
+    await api.create(raw).catch(() => {})
+
+    // AI enrichment — silent background, 12s timeout
+    withTimeout(callAI(text, tasks, myName), 12_000)
+      .then(async result => {
+        if (result.type !== 'add') return
+        const enriched = {
+          title:   result.title,
+          dueDate: result.dueDate ?? offsetDate(1),
+          isEvent: result.isEvent,
+          tags:    result.tags ?? [],
+          who:     result.who ?? myName,
+        }
+        setTasks(prev => prev.map(t => t.id === id ? { ...t, ...enriched } : t))
+        await api.update(id, enriched).catch(() => {})
+      })
+      .catch(() => { /* AI unavailable — task stays as raw text, that's fine */ })
   }
 
   const toggle = async (id: string) => {
@@ -427,7 +445,7 @@ export default function Tasks() {
         <Box sx={{ position: 'relative', flex: 1 }}>
           <AutoAwesomeIcon sx={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 1, fontSize: 18, color: 'primary.main', opacity: 0.7, pointerEvents: 'none' }} />
           <TextField inputRef={inputRef} fullWidth
-            placeholder={`Try "dentist Thursday" or "Sarah needs to call the school"`}
+            placeholder={`Try "dentist Thursday" or "Kate needs to call the school"`}
             value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void submit() } }}
             disabled={parsing || !myName} size="small"
@@ -518,7 +536,7 @@ export default function Tasks() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             This lets you and your wife see whose tasks are whose. Set it once per device.
           </Typography>
-          <TextField autoFocus fullWidth placeholder="e.g. Adam or Sarah"
+          <TextField autoFocus fullWidth placeholder="e.g. Adam or Kate"
             value={nameInput} onChange={e => setNameInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') saveName() }}
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' }, '&.Mui-focused fieldset': { borderColor: 'primary.main' } } }}
