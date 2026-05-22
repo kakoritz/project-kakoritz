@@ -12,12 +12,14 @@ import AppsIcon from '@mui/icons-material/Apps'
 import HomeIcon from '@mui/icons-material/Home'
 import WbSunnyIcon from '@mui/icons-material/WbSunny'
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary'
+import SmartToyIcon from '@mui/icons-material/SmartToy'
 import Overview from './pages/Overview'
 import LabMonitor from './pages/LabMonitor'
 import Analytics from './pages/Analytics'
 import Portal from './pages/Portal'
 import Weather from './pages/Weather'
 import Gallery from './pages/Gallery'
+import ClaudeChat from './pages/ClaudeChat'
 
 const theme = createTheme({
   palette: {
@@ -51,6 +53,7 @@ const NAV = [
   { label: 'Analytics',  mobileLabel: 'Stats',    icon: <BarChartIcon />,     page: 'analytics'},
   { label: 'App Portal', mobileLabel: 'Apps',     icon: <AppsIcon />,         page: 'portal'   },
   { label: 'Gallery',    mobileLabel: 'Gallery',  icon: <PhotoLibraryIcon />, page: 'gallery'  },
+  { label: 'Claude AI',  mobileLabel: 'AI',       icon: <SmartToyIcon />,     page: 'claude'   },
 ]
 
 export default function App() {
@@ -94,6 +97,7 @@ export default function App() {
       case 'analytics': return <Analytics />
       case 'portal':    return <Portal />
       case 'gallery':   return <Gallery />
+      case 'claude':    return <ClaudeChat />
       default:          return <Overview />
     }
   }
