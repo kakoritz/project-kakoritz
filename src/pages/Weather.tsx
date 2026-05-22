@@ -87,6 +87,7 @@ export default function Weather() {
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
 
   const activeRowRef = useRef<HTMLDivElement | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
   // ≥45 min into an hour → show next hour, otherwise current hour
   function getActiveHour() {
@@ -95,10 +96,17 @@ export default function Weather() {
   }
 
   useEffect(() => {
-    if (selectedDay && activeRowRef.current) {
+    if (!selectedDay) return
+    // Wait for dialog slide-in animation to finish before scrolling
+    setTimeout(() => {
+      const container = scrollContainerRef.current
       const el = activeRowRef.current
-      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200)
-    }
+      if (!container || !el) return
+      const containerRect = container.getBoundingClientRect()
+      const elRect = el.getBoundingClientRect()
+      const scrollTo = container.scrollTop + (elRect.top - containerRect.top) - (container.clientHeight / 2) + (el.clientHeight / 2)
+      container.scrollTo({ top: Math.max(0, scrollTo), behavior: 'smooth' })
+    }, 350)
   }, [selectedDay])
 
   const fetchWeather = () => {
@@ -292,7 +300,7 @@ export default function Weather() {
             </Box>
 
             {/* Hourly Rows */}
-            <Box sx={{ p: 2, maxHeight: '60vh', overflowY: 'auto' }}>
+            <Box ref={scrollContainerRef} sx={{ p: 2, maxHeight: '60vh', overflowY: 'auto' }}>
               {dayHours.map((hour) => {
                 const hWmo = getWmo(hour.code)
                 const hTime = new Date(hour.time)
