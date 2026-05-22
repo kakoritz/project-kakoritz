@@ -1,11 +1,15 @@
 import { useState } from 'react'
-import { Box, CssBaseline, ThemeProvider, createTheme, AppBar, Toolbar, Typography, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, IconButton } from '@mui/material'
+import {
+  Box, CssBaseline, ThemeProvider, createTheme,
+  AppBar, Toolbar, Typography,
+  Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
+  BottomNavigation, BottomNavigationAction, Paper,
+} from '@mui/material'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart'
 import BarChartIcon from '@mui/icons-material/BarChart'
 import AppsIcon from '@mui/icons-material/Apps'
 import HomeIcon from '@mui/icons-material/Home'
-import MenuIcon from '@mui/icons-material/Menu'
 import WbSunnyIcon from '@mui/icons-material/WbSunny'
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary'
 import Overview from './pages/Overview'
@@ -33,9 +37,7 @@ const theme = createTheme({
       },
     },
     MuiChip: {
-      styleOverrides: {
-        root: { fontWeight: 500 },
-      },
+      styleOverrides: { root: { fontWeight: 500 } },
     },
   },
 })
@@ -43,26 +45,25 @@ const theme = createTheme({
 const DRAWER_WIDTH = 220
 
 const NAV = [
-  { label: 'Overview', icon: <HomeIcon />, page: 'overview' },
-  { label: 'Weather', icon: <WbSunnyIcon />, page: 'weather' },
-  { label: 'Lab Monitor', icon: <MonitorHeartIcon />, page: 'lab' },
-  { label: 'Analytics', icon: <BarChartIcon />, page: 'analytics' },
-  { label: 'App Portal', icon: <AppsIcon />, page: 'portal' },
-  { label: 'Gallery', icon: <PhotoLibraryIcon />, page: 'gallery' },
+  { label: 'Overview',   mobileLabel: 'Home',    icon: <HomeIcon />,         page: 'overview' },
+  { label: 'Weather',    mobileLabel: 'Weather',  icon: <WbSunnyIcon />,      page: 'weather'  },
+  { label: 'Lab Monitor',mobileLabel: 'Lab',      icon: <MonitorHeartIcon />, page: 'lab'      },
+  { label: 'Analytics',  mobileLabel: 'Stats',    icon: <BarChartIcon />,     page: 'analytics'},
+  { label: 'App Portal', mobileLabel: 'Apps',     icon: <AppsIcon />,         page: 'portal'   },
+  { label: 'Gallery',    mobileLabel: 'Gallery',  icon: <PhotoLibraryIcon />, page: 'gallery'  },
 ]
 
 export default function App() {
   const [page, setPage] = useState('overview')
-  const [mobileOpen, setMobileOpen] = useState(false)
 
-  const drawer = (
+  const sideNav = (
     <Box sx={{ mt: 8 }}>
       <List>
         {NAV.map((item) => (
           <ListItem key={item.page} disablePadding>
             <ListItemButton
               selected={page === item.page}
-              onClick={() => { setPage(item.page); setMobileOpen(false) }}
+              onClick={() => setPage(item.page)}
               sx={{
                 borderRadius: 2, mx: 1, mb: 0.5,
                 transition: 'all 0.2s ease',
@@ -87,13 +88,13 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'overview': return <Overview />
-      case 'weather': return <Weather />
-      case 'lab': return <LabMonitor />
+      case 'overview':  return <Overview />
+      case 'weather':   return <Weather />
+      case 'lab':       return <LabMonitor />
       case 'analytics': return <Analytics />
-      case 'portal': return <Portal />
-      case 'gallery': return <Gallery />
-      default: return <Overview />
+      case 'portal':    return <Portal />
+      case 'gallery':   return <Gallery />
+      default:          return <Overview />
     }
   }
 
@@ -101,6 +102,8 @@ export default function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ display: 'flex' }}>
+
+        {/* ── Top AppBar ─────────────────────────────────────────────────────── */}
         <AppBar
           position="fixed"
           elevation={0}
@@ -114,9 +117,6 @@ export default function App() {
           }}
         >
           <Toolbar>
-            <IconButton edge="start" sx={{ mr: 2, display: { sm: 'none' } }} onClick={() => setMobileOpen(!mobileOpen)}>
-              <MenuIcon />
-            </IconButton>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Box sx={{
                 p: 0.75, borderRadius: 1.5,
@@ -126,22 +126,94 @@ export default function App() {
               }}>
                 <DashboardIcon sx={{ color: 'primary.main', fontSize: 20 }} />
               </Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: 2.5, fontSize: 15 }}>KAKORITZ</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: 2.5, fontSize: 15 }}>
+                KAKORITZ
+              </Typography>
             </Box>
           </Toolbar>
         </AppBar>
 
-        <Drawer variant="permanent" sx={{ width: DRAWER_WIDTH, flexShrink: 0, display: { xs: 'none', sm: 'block' }, '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', bgcolor: '#0e0e1c', borderRight: '1px solid rgba(255,255,255,0.06)' } }}>
-          {drawer}
+        {/* ── Desktop side drawer (sm+) ──────────────────────────────────────── */}
+        <Drawer
+          variant="permanent"
+          sx={{
+            width: DRAWER_WIDTH, flexShrink: 0,
+            display: { xs: 'none', sm: 'block' },
+            '& .MuiDrawer-paper': {
+              width: DRAWER_WIDTH, boxSizing: 'border-box',
+              bgcolor: '#0e0e1c', borderRight: '1px solid rgba(255,255,255,0.06)',
+            },
+          }}
+        >
+          {sideNav}
         </Drawer>
 
-        <Drawer variant="temporary" open={mobileOpen} onClose={() => setMobileOpen(false)} sx={{ display: { xs: 'block', sm: 'none' }, '& .MuiDrawer-paper': { width: DRAWER_WIDTH } }}>
-          {drawer}
-        </Drawer>
-
-        <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8, minHeight: '100vh', bgcolor: 'background.default', backgroundImage: 'radial-gradient(circle at 20% 0%, rgba(99,102,241,0.04) 0%, transparent 60%)' }}>
+        {/* ── Main content ──────────────────────────────────────────────────── */}
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            p: { xs: 2, sm: 3 },
+            mt: 8,
+            minHeight: '100vh',
+            bgcolor: 'background.default',
+            backgroundImage: 'radial-gradient(circle at 20% 0%, rgba(99,102,241,0.04) 0%, transparent 60%)',
+            // Extra bottom padding on mobile so content clears the tab bar + safe area
+            pb: { xs: 'calc(env(safe-area-inset-bottom) + 72px)', sm: 3 },
+          }}
+        >
           {renderPage()}
         </Box>
+
+        {/* ── Mobile bottom tab bar (xs only) ───────────────────────────────── */}
+        <Paper
+          elevation={0}
+          sx={{
+            position: 'fixed', bottom: 0, left: 0, right: 0,
+            display: { xs: 'block', sm: 'none' },
+            zIndex: (t) => t.zIndex.appBar,
+            bgcolor: 'rgba(10,10,20,0.85)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            backgroundImage: 'none',
+          }}
+        >
+          <BottomNavigation
+            value={page}
+            onChange={(_, v) => setPage(v)}
+            sx={{
+              bgcolor: 'transparent',
+              height: 56,
+              pb: 'env(safe-area-inset-bottom)',
+            }}
+          >
+            {NAV.map((item) => (
+              <BottomNavigationAction
+                key={item.page}
+                value={item.page}
+                label={item.mobileLabel}
+                icon={item.icon}
+                showLabel
+                sx={{
+                  color: 'rgba(255,255,255,0.35)',
+                  minWidth: 0,
+                  px: 0.5,
+                  transition: 'color 0.2s ease',
+                  '&.Mui-selected': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiBottomNavigationAction-label': {
+                    fontSize: 10,
+                    mt: 0.25,
+                    '&.Mui-selected': { fontSize: 10, fontWeight: 600 },
+                  },
+                }}
+              />
+            ))}
+          </BottomNavigation>
+        </Paper>
+
       </Box>
     </ThemeProvider>
   )
