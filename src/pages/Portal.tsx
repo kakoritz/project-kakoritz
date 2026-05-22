@@ -13,6 +13,10 @@ import Inventory2Icon from '@mui/icons-material/Inventory2'
 import EmailIcon from '@mui/icons-material/Email'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import CloseIcon from '@mui/icons-material/Close'
+import PlayCircleIcon from '@mui/icons-material/PlayCircle'
+import MovieIcon from '@mui/icons-material/Movie'
+import LiveTvIcon from '@mui/icons-material/LiveTv'
+import AutoStoriesIcon from '@mui/icons-material/AutoStories'
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -22,6 +26,13 @@ const APPS = [
   { name: 'Containers',      desc: 'Docker',        url: 'http://192.168.1.251:5000',                             icon: <Inventory2Icon />, color: '#38bdf8' },
   { name: 'Actions',         desc: 'GitHub CI',     url: 'https://github.com/kakoritz/project-kakoritz/actions', icon: <CodeIcon />,       color: '#a78bfa' },
   { name: 'Router',          desc: 'Network',       url: 'http://192.168.1.1',                                    icon: <RouterIcon />,     color: '#f59e0b' },
+]
+
+const STREAMING = [
+  { name: 'YouTube',  desc: 'Video',       url: 'https://www.youtube.com',          icon: <PlayCircleIcon />, color: '#ef4444' },
+  { name: 'Plex',     desc: 'Local Media', url: 'http://192.168.1.251:32400/web',   icon: <MovieIcon />,      color: '#e5a00d' },
+  { name: 'Netflix',  desc: 'Streaming',   url: 'https://www.netflix.com',          icon: <LiveTvIcon />,     color: '#dc2626' },
+  { name: 'Disney+',  desc: 'Streaming',   url: 'https://www.disneyplus.com',       icon: <AutoStoriesIcon />,color: '#3b82f6' },
 ]
 
 const EMAIL_ACCOUNTS = [
@@ -154,7 +165,13 @@ export default function Portal() {
 
       <Grid container spacing={{ xs: 1.5, sm: 2 }}>
 
-        {/* Regular app icons */}
+        {/* ── Lab & Tools ── */}
+        <Grid size={12}>
+          <Typography variant="overline" color="text.disabled" sx={{ letterSpacing: 1.5, fontSize: 11 }}>
+            Lab &amp; Tools
+          </Typography>
+        </Grid>
+
         {APPS.map((app) => (
           <Grid size={{ xs: 4, sm: 3, md: 2 }} key={app.name}>
             <IconCard
@@ -164,7 +181,29 @@ export default function Portal() {
           </Grid>
         ))}
 
-        {/* Banking icon */}
+        {/* ── Streaming ── */}
+        <Grid size={12}>
+          <Typography variant="overline" color="text.disabled" sx={{ letterSpacing: 1.5, fontSize: 11, mt: 0.5, display: 'block' }}>
+            Streaming
+          </Typography>
+        </Grid>
+
+        {STREAMING.map((app) => (
+          <Grid size={{ xs: 4, sm: 3, md: 2 }} key={app.name}>
+            <IconCard
+              name={app.name} desc={app.desc} color={app.color} icon={app.icon}
+              onClick={() => window.open(app.url, '_blank')}
+            />
+          </Grid>
+        ))}
+
+        {/* ── Finance & Communication ── */}
+        <Grid size={12}>
+          <Typography variant="overline" color="text.disabled" sx={{ letterSpacing: 1.5, fontSize: 11, mt: 0.5, display: 'block' }}>
+            Finance &amp; Communication
+          </Typography>
+        </Grid>
+
         <Grid size={{ xs: 4, sm: 3, md: 2 }}>
           <IconCard
             name="Banking" desc="5 accounts" color="#22c55e"
@@ -173,7 +212,6 @@ export default function Portal() {
           />
         </Grid>
 
-        {/* Email icon */}
         <Grid size={{ xs: 4, sm: 3, md: 2 }}>
           <IconCard
             name="Email" desc="4 accounts" color="#fb923c"

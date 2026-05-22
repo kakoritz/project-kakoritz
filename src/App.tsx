@@ -13,6 +13,7 @@ import HomeIcon from '@mui/icons-material/Home'
 import WbSunnyIcon from '@mui/icons-material/WbSunny'
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
+import ChecklistIcon from '@mui/icons-material/Checklist'
 import Overview from './pages/Overview'
 import LabMonitor from './pages/LabMonitor'
 import Analytics from './pages/Analytics'
@@ -20,6 +21,7 @@ import Portal from './pages/Portal'
 import Weather from './pages/Weather'
 import Gallery from './pages/Gallery'
 import ClaudeChat from './pages/ClaudeChat'
+import Tasks from './pages/Tasks'
 
 const theme = createTheme({
   palette: {
@@ -47,13 +49,14 @@ const theme = createTheme({
 const DRAWER_WIDTH = 220
 
 const NAV = [
-  { label: 'Overview',   mobileLabel: 'Home',    icon: <HomeIcon />,         page: 'overview' },
-  { label: 'Weather',    mobileLabel: 'Weather',  icon: <WbSunnyIcon />,      page: 'weather'  },
-  { label: 'Lab Monitor',mobileLabel: 'Lab',      icon: <MonitorHeartIcon />, page: 'lab'      },
-  { label: 'Analytics',  mobileLabel: 'Stats',    icon: <BarChartIcon />,     page: 'analytics'},
-  { label: 'App Portal', mobileLabel: 'Apps',     icon: <AppsIcon />,         page: 'portal'   },
-  { label: 'Gallery',    mobileLabel: 'Gallery',  icon: <PhotoLibraryIcon />, page: 'gallery'  },
-  { label: 'Claude AI',  mobileLabel: 'AI',       icon: <SmartToyIcon />,     page: 'claude'   },
+  { label: 'Overview',    mobileLabel: 'Home',    icon: <HomeIcon />,         page: 'overview'  },
+  { label: 'Weather',     mobileLabel: 'Weather', icon: <WbSunnyIcon />,      page: 'weather'   },
+  { label: 'Lab Monitor', mobileLabel: 'Lab',     icon: <MonitorHeartIcon />, page: 'lab',       hideMobile: true },
+  { label: 'Analytics',   mobileLabel: 'Stats',   icon: <BarChartIcon />,     page: 'analytics', hideMobile: true },
+  { label: 'App Portal',  mobileLabel: 'Apps',    icon: <AppsIcon />,         page: 'portal'    },
+  { label: 'Gallery',     mobileLabel: 'Gallery', icon: <PhotoLibraryIcon />, page: 'gallery'   },
+  { label: 'Claude AI',   mobileLabel: 'AI',      icon: <SmartToyIcon />,     page: 'claude'    },
+  { label: 'Tasks',       mobileLabel: 'Tasks',   icon: <ChecklistIcon />,    page: 'tasks'     },
 ]
 
 export default function App() {
@@ -98,6 +101,7 @@ export default function App() {
       case 'portal':    return <Portal />
       case 'gallery':   return <Gallery />
       case 'claude':    return <ClaudeChat />
+      case 'tasks':     return <Tasks />
       default:          return <Overview />
     }
   }
@@ -192,7 +196,7 @@ export default function App() {
               height: 58,
             }}
           >
-            {NAV.map((item) => (
+            {NAV.filter(item => !item.hideMobile).map((item) => (
               <BottomNavigationAction
                 key={item.page}
                 value={item.page}
