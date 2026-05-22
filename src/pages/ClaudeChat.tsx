@@ -4,7 +4,7 @@ import {
   Avatar, Tooltip,
 } from '@mui/material'
 import SendIcon from '@mui/icons-material/Send'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
 import PersonIcon from '@mui/icons-material/Person'
 
