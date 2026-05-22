@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
 import {
   Box, Typography, IconButton, TextField, CircularProgress,
   Avatar, Tooltip,

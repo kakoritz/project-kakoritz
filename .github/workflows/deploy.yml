@@ -38,6 +38,22 @@ jobs:
           ssh aspiker@192.168.1.251 "$DOCKER rm photo-api || true"
           ssh aspiker@192.168.1.251 "$DOCKER run -d --name photo-api --restart unless-stopped -p 8586:3001 -v '/volume1/Data/Pictures/FAMILY:/photos:ro' photo-api:latest"
 
+  build-claude-api:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and deploy claude-api
+        run: |
+          DOCKER=/var/packages/ContainerManager/target/usr/bin/docker
+          sudo docker build -t claude-api:latest ./claude-api
+          sudo docker save claude-api:latest | ssh aspiker@192.168.1.251 "cat > /volume2/docker/claude-api.tar"
+          ssh aspiker@192.168.1.251 "$DOCKER load < /volume2/docker/claude-api.tar"
+          ssh aspiker@192.168.1.251 "$DOCKER stop claude-api || true"
+          ssh aspiker@192.168.1.251 "$DOCKER rm claude-api || true"
+          ssh aspiker@192.168.1.251 "$DOCKER run -d --name claude-api --restart unless-stopped -p 8587:3001 -e ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }} claude-api:latest"
+
   deploy-dashboard:
     runs-on: self-hosted
     needs: build-and-push
