@@ -159,7 +159,7 @@ export default function App() {
             bgcolor: 'background.default',
             backgroundImage: 'radial-gradient(circle at 20% 0%, rgba(99,102,241,0.04) 0%, transparent 60%)',
             // Extra bottom padding on mobile so content clears the tab bar + safe area
-            pb: { xs: 'calc(env(safe-area-inset-bottom) + 72px)', sm: 3 },
+            pb: { xs: 'calc(58px + env(safe-area-inset-bottom) + 16px)', sm: 3 },
           }}
         >
           {renderPage()}
@@ -177,6 +177,7 @@ export default function App() {
             WebkitBackdropFilter: 'blur(16px)',
             borderTop: '1px solid rgba(255,255,255,0.08)',
             backgroundImage: 'none',
+            paddingBottom: 'env(safe-area-inset-bottom)',
           }}
         >
           <BottomNavigation
@@ -184,8 +185,7 @@ export default function App() {
             onChange={(_, v) => setPage(v)}
             sx={{
               bgcolor: 'transparent',
-              height: 56,
-              pb: 'env(safe-area-inset-bottom)',
+              height: 58,
             }}
           >
             {NAV.map((item) => (
