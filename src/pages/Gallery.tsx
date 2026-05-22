@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { Box, Typography, CircularProgress, IconButton, Card, Dialog, Tooltip, Chip } from '@mui/material'
+import { Box, Typography, IconButton, Card, Dialog, Tooltip, Chip } from '@mui/material'
+import LoadingScreen from '../components/LoadingScreen'
 import { ArrowLeft, RefreshCw, X, ZoomIn, Images } from 'lucide-react'
 
 const API = 'http://192.168.1.251:8586'
@@ -106,7 +107,7 @@ function DrillView({ cat, onBack }: { cat: Category; onBack: () => void }) {
     setSlots(picked.map(src => ({ src, fading: false })))
   }
 
-  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>
+  if (loading) return <LoadingScreen message="Loading photos" />
 
   return (
     <Box>
@@ -196,7 +197,7 @@ export default function Gallery() {
     return () => clearInterval(t)
   }, [categories])
 
-  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>
+  if (loading) return <LoadingScreen message="Loading gallery" />
   if (error) return <Box sx={{ mt: 6, textAlign: 'center' }}><Typography color="error">{error}</Typography></Box>
   if (selected) return <DrillView cat={selected} onBack={() => setSelected(null)} />
 

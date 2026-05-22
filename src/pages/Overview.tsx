@@ -7,15 +7,30 @@ import MemoryIcon from '@mui/icons-material/Memory'
 
 function StatCard({ title, value, sub, icon, color }: { title: string; value: string; sub?: string; icon: React.ReactNode; color: string }) {
   return (
-    <Card sx={{ bgcolor: 'background.paper', borderRadius: 3, border: '1px solid rgba(255,255,255,0.06)' }}>
+    <Card sx={{
+      bgcolor: 'background.paper',
+      borderRadius: 3,
+      border: '1px solid rgba(255,255,255,0.06)',
+      borderLeft: `3px solid ${color}`,
+      position: 'relative',
+      overflow: 'hidden',
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: `linear-gradient(135deg, ${color}0a 0%, transparent 55%)`,
+        pointerEvents: 'none',
+      },
+      '&:hover': { borderColor: color, boxShadow: `0 4px 24px ${color}20` },
+    }}>
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box>
-            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1 }}>{title}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1.5, fontSize: 10 }}>{title}</Typography>
             <Typography variant="h4" sx={{ fontWeight: 700, mt: 0.5 }}>{value}</Typography>
             {sub && <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{sub}</Typography>}
           </Box>
-          <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: `${color}22` }}>
+          <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: `${color}1a`, border: `1px solid ${color}30` }}>
             <Box sx={{ color }}>{icon}</Box>
           </Box>
         </Box>

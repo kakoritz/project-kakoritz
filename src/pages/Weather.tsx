@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Box, Typography, Grid, Card, CardContent, CircularProgress, Chip, Dialog, DialogContent, IconButton, Slide } from '@mui/material'
+import { useEffect, useRef, useState } from 'react'
+import { Box, Typography, Grid, Card, CardContent, Chip, Dialog, DialogContent, IconButton, Slide } from '@mui/material'
 import type { TransitionProps } from '@mui/material/transitions'
 import { forwardRef } from 'react'
+import LoadingScreen from '../components/LoadingScreen'
 import { Wind, Droplets, Eye, Thermometer, Sun, Umbrella, Navigation, X } from 'lucide-react'
 import { getWeatherBg } from './WeatherScene'
 
@@ -85,6 +86,21 @@ export default function Weather() {
   const [error, setError] = useState('')
   const [selectedDay, setSelectedDay] = useState<DayData | null>(null)
 
+  const activeRowRef = useRef<HTMLDivElement | null>(null)
+
+  // ≥45 min into an hour → show next hour, otherwise current hour
+  function getActiveHour() {
+    const now = new Date()
+    return now.getMinutes() >= 45 ? Math.min(now.getHours() + 1, 23) : now.getHours()
+  }
+
+  useEffect(() => {
+    if (selectedDay && activeRowRef.current) {
+      const el = activeRowRef.current
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200)
+    }
+  }, [selectedDay])
+
   const fetchWeather = () => {
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,uv_index&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,uv_index_max&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&timezone=America%2FNew_York&forecast_days=5`)
       .then(r => r.json())
@@ -132,7 +148,7 @@ export default function Weather() {
     return () => clearInterval(interval)
   }, [])
 
-  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>
+  if (loading) return <LoadingScreen message="Fetching weather" />
   if (error || !data) return <Typography color="error">{error}</Typography>
 
   const curr = getWmo(data.current.code)
@@ -140,6 +156,7 @@ export default function Weather() {
   const dayHours = selectedDay ? data.hourly.filter(h => h.time.startsWith(selectedDay.date)) : []
   const selWmo = selectedDay ? getWmo(selectedDay.code) : null
   const selDate = selectedDay ? new Date(selectedDay.date + 'T12:00:00') : null
+  const activeHour = getActiveHour()
 
   return (
     <Box>
@@ -283,20 +300,31 @@ export default function Weather() {
                 const ampm = h >= 12 ? 'PM' : 'AM'
                 const h12 = h % 12 || 12
                 const isNight = h < 6 || h >= 20
+                const isActive = h === activeHour
                 return (
                   <Box
                     key={hour.time}
+                    ref={isActive ? activeRowRef : undefined}
                     sx={{
                       display: 'flex', alignItems: 'center', gap: 2, p: 1.5, mb: 1,
                       borderRadius: 2, flexWrap: 'wrap',
-                      bgcolor: isNight ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.04)',
+                      bgcolor: isActive
+                        ? 'rgba(99,102,241,0.18)'
+                        : isNight ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
+                      border: isActive
+                        ? '1px solid rgba(99,102,241,0.5)'
+                        : '1px solid rgba(255,255,255,0.04)',
+                      boxShadow: isActive ? '0 0 20px rgba(99,102,241,0.12)' : 'none',
                       transition: 'background 0.2s',
-                      '&:hover': { bgcolor: 'rgba(99,102,241,0.1)' }
+                      '&:hover': { bgcolor: isActive ? 'rgba(99,102,241,0.24)' : 'rgba(99,102,241,0.1)' },
                     }}
                   >
                     {/* Time */}
-                    <Typography sx={{ fontWeight: 600, width: 70, flexShrink: 0, color: isNight ? 'rgba(255,255,255,0.4)' : 'white' }}>
+                    <Typography sx={{
+                      fontWeight: isActive ? 800 : 600,
+                      width: 70, flexShrink: 0,
+                      color: isActive ? '#a5b4fc' : isNight ? 'rgba(255,255,255,0.4)' : 'white',
+                    }}>
                       {h12}:00 {ampm}
                     </Typography>
 
@@ -305,7 +333,7 @@ export default function Weather() {
 
                     {/* Temp */}
                     <Box sx={{ width: 80, flexShrink: 0 }}>
-                      <Typography sx={{ fontWeight: 700, fontSize: 18 }}>{hour.temp}°F</Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: 18, color: isActive ? 'white' : 'inherit' }}>{hour.temp}°F</Typography>
                       <Typography variant="caption" color="text.secondary">feels {hour.feels_like}°</Typography>
                     </Box>
 
@@ -313,7 +341,15 @@ export default function Weather() {
                     <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 100 }}>{hWmo.label}</Typography>
 
                     {/* Stats */}
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                      {isActive && (
+                        <Chip
+                          label="NOW"
+                          size="small"
+                          color="primary"
+                          sx={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, height: 20, px: 0.5 }}
+                        />
+                      )}
                       <Chip size="small" icon={<Droplets size={10}/>} label={`${hour.humidity}%`} sx={{ fontSize: 10 }} />
                       <Chip size="small" icon={<Wind size={10}/>} label={`${hour.wind_speed} mph ${windDir(hour.wind_dir)}`} sx={{ fontSize: 10 }} />
                       {hour.precip_prob > 0 && (

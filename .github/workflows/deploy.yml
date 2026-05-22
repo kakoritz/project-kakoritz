@@ -22,12 +22,23 @@ jobs:
           docker build -t ghcr.io/kakoritz/project-kakoritz:latest .
           docker push ghcr.io/kakoritz/project-kakoritz:latest
 
-      - name: Build and push photo-api
-        run: |
-          docker build -t ghcr.io/kakoritz/photo-api:latest ./photo-api
-          docker push ghcr.io/kakoritz/photo-api:latest
+  build-photo-api:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  deploy:
+      - name: Build and deploy photo-api
+        run: |
+          DOCKER=/var/packages/ContainerManager/target/usr/bin/docker
+          sudo docker build -t photo-api:latest ./photo-api
+          sudo docker save photo-api:latest | ssh aspiker@192.168.1.251 "cat > /volume2/docker/photo-api.tar"
+          ssh aspiker@192.168.1.251 "$DOCKER load < /volume2/docker/photo-api.tar"
+          ssh aspiker@192.168.1.251 "$DOCKER stop photo-api || true"
+          ssh aspiker@192.168.1.251 "$DOCKER rm photo-api || true"
+          ssh aspiker@192.168.1.251 "$DOCKER run -d --name photo-api --restart unless-stopped -p 8586:3001 -v '/volume1/Data/Pictures/FAMILY:/photos:ro' photo-api:latest"
+
+  deploy-dashboard:
     runs-on: self-hosted
     needs: build-and-push
     steps:
@@ -38,11 +49,3 @@ jobs:
           ssh aspiker@192.168.1.251 "$DOCKER stop project-kakoritz || true"
           ssh aspiker@192.168.1.251 "$DOCKER rm project-kakoritz || true"
           ssh aspiker@192.168.1.251 "$DOCKER run -d --name project-kakoritz --restart unless-stopped -p 8585:80 ghcr.io/kakoritz/project-kakoritz:latest"
-
-      - name: Deploy photo-api
-        run: |
-          DOCKER=/var/packages/ContainerManager/target/usr/bin/docker
-          ssh aspiker@192.168.1.251 "$DOCKER pull ghcr.io/kakoritz/photo-api:latest"
-          ssh aspiker@192.168.1.251 "$DOCKER stop photo-api || true"
-          ssh aspiker@192.168.1.251 "$DOCKER rm photo-api || true"
-          ssh aspiker@192.168.1.251 "$DOCKER run -d --name photo-api --restart unless-stopped -p 8586:3001 -v /volume1/Data/Pictures/FAMILY:/photos:ro ghcr.io/kakoritz/photo-api:latest"
