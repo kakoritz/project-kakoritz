@@ -34,9 +34,10 @@ jobs:
           sudo docker build -t photo-api:latest ./photo-api
           sudo docker save photo-api:latest | ssh aspiker@192.168.1.251 "cat > /volume2/docker/photo-api.tar"
           ssh aspiker@192.168.1.251 "$DOCKER load < /volume2/docker/photo-api.tar"
+          ssh aspiker@192.168.1.251 "mkdir -p /volume2/docker/kakoritz-data"
           ssh aspiker@192.168.1.251 "$DOCKER stop photo-api || true"
           ssh aspiker@192.168.1.251 "$DOCKER rm photo-api || true"
-          ssh aspiker@192.168.1.251 "$DOCKER run -d --name photo-api --restart unless-stopped -p 8586:3001 -v '/volume1/Data/Pictures/FAMILY:/photos:ro' photo-api:latest"
+          ssh aspiker@192.168.1.251 "$DOCKER run -d --name photo-api --restart unless-stopped -p 8586:3001 -v '/volume1/Data/Pictures/FAMILY:/photos:ro' -v '/volume2/docker/kakoritz-data:/data' -e TASKS_FILE=/data/tasks.json photo-api:latest"
 
   build-claude-api:
     runs-on: self-hosted
