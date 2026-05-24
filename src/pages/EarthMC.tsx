@@ -98,7 +98,7 @@ export default function EarthMC() {
   const [online, setOnline]             = useState<string[]>([])
   const [events, setEvents]             = useState<LiveEvent[]>([])
   const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState<string | null>(null)
+  const [shopError, setShopError]       = useState<string | null>(null)
   const [sseConnected, setSseConnected] = useState(false)
   const [search, setSearch]             = useState('')
   const [uuid, setUuid]                 = useState('')
@@ -120,14 +120,19 @@ export default function EarthMC() {
   }, [])
 
   const fetchShops = useCallback(async (playerUUID: string) => {
-    const res = await fetch(`${API_BASE}/shop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: [playerUUID], key: API_KEY }),
-    })
-    if (!res.ok) throw new Error(`Shop API ${res.status}`)
-    const data = await res.json()
-    setShops(Array.isArray(data) ? data as Shop[] : [])
+    setShopError(null)
+    try {
+      const res = await fetch(`${API_BASE}/shop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
+        body: JSON.stringify({ query: [playerUUID], key: API_KEY }),
+      })
+      if (!res.ok) throw new Error(`Shop API returned ${res.status}`)
+      const data = await res.json()
+      setShops(Array.isArray(data) ? data as Shop[] : [])
+    } catch (e) {
+      setShopError((e as Error).message)
+    }
   }, [])
 
   const fetchNation = useCallback(async () => {
@@ -213,14 +218,13 @@ export default function EarthMC() {
 
   // ── Initial load ────────────────────────────────────────────────────────────
   const loadAll = useCallback(async (existingUUID?: string) => {
+    setLoading(true)
     try {
-      setLoading(true)
-      setError(null)
       const playerUUID = existingUUID ?? (uuid || await getUUID())
       if (!uuid) setUuid(playerUUID)
-      await Promise.all([fetchShops(playerUUID), fetchNation(), fetchOnline()])
+      await Promise.allSettled([fetchShops(playerUUID), fetchNation(), fetchOnline()])
     } catch (e) {
-      setError((e as Error).message)
+      setShopError((e as Error).message)
     } finally {
       setLoading(false)
     }
@@ -299,8 +303,6 @@ export default function EarthMC() {
         </Stack>
       </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
       {alerts.length > 0 && (
         <Alert severity={outCount > 0 ? 'error' : 'warning'} icon={<WarningAmberIcon />} sx={{ mb: 2 }}>
           {outCount > 0 && <><strong>{outCount} out of stock</strong>{lowCount > 0 ? ' · ' : ''}</>}
@@ -332,6 +334,12 @@ export default function EarthMC() {
               <CircularProgress size={14} />
               <Typography variant="caption" color="text.secondary">Loading shops…</Typography>
             </Stack>
+          )}
+
+          {shopError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Shop data unavailable: {shopError}
+            </Alert>
           )}
 
           <TextField
