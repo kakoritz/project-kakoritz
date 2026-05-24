@@ -41,6 +41,7 @@ src/
     Analytics.tsx   # Network traffic area chart + storage bar chart (random mock data)
     Portal.tsx      # App portal: Synology DSM, GitHub, Router, Cloud Storage link cards
     Gallery.tsx     # Family photo gallery — category cards → drill-in with lightbox
+    EarthMC.tsx     # EarthMC game monitor — shop dashboard, live SSE feed, nation overview
 
 photo-api/
   server.js         # Express API serving photos from /volume1/Data/Pictures/FAMILY on NAS
@@ -68,6 +69,28 @@ nginx.conf          # SPA fallback: try_files → index.html
 | Weather location | Rutherfordton, NC (lat 35.37, lon -81.96) |
 | Photo root (NAS volume) | `/volume1/Data/Pictures/FAMILY` |
 | Docker image | `ghcr.io/kakoritz/project-kakoritz:latest` |
+| EarthMC API base | `https://api.earthmc.net/v4` |
+| EarthMC player | `kakoritz` |
+| EarthMC nation | `Narmada` |
+| EarthMC shop town | `Sita` (the mega shop) |
+
+## EarthMC page (EarthMC.tsx)
+Monitors the Narmada nation's mega shop in the town of Sita on the EarthMC Minecraft server.
+
+**Three tabs:**
+- **Shops** — fetches all barrels owned by `kakoritz` via `POST /shop`, displays stock level (red=out, amber<64, green≥64), price, per-unit price, coordinates. Auto-refreshes every 30s. Sorted worst-stock-first.
+- **Live Feed** — SSE stream (`GET /events`) showing real-time sales, purchases, out-of-stock/space/gold alerts.
+- **Nation** — Narmada balance, king, capital, residents (green dot = online), allies, enemies.
+
+**API:** `https://api.earthmc.net/v4` — read-only. No way to write/push data to shop barrels.
+
+**Auth:** API key stored as GitHub Secret `VITE_EARTHMC_API_KEY`. Baked into the Docker image at build time via `--build-arg`. Also set `VITE_EARTHMC_PLAYER` and `VITE_EARTHMC_NATION` (defaults hardcoded as `kakoritz` / `Narmada`).
+
+**MUI v9 gotcha:** ALL CSS/layout props must go inside `sx={}`. Direct shorthand props (`mb`, `gap`, `alignItems`, `fontWeight`, `textAlign`, etc.) are not accepted in MUI v9 — they were removed. Only component-specific props (`variant`, `color` on Typography, `direction`/`spacing` on Stack, etc.) remain as direct props.
+
+**Planned future work:**
+- Contributor tracking per item (who supplies each item, their % cut, staff cuts) — data would live separately (not from API, which is read-only)
+- The user maintains a spreadsheet for this — future idea is to surface it alongside live stock data
 
 ## Photo API categories (server.js)
 `jaxson`, `sophia`, `evelyn`, `family`, `wedding`, `maternity`, `animals` — each maps to one or more folder names under the Photos root.
