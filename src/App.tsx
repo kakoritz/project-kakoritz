@@ -11,11 +11,13 @@ import WbSunnyIcon from '@mui/icons-material/WbSunny'
 import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
 import ChecklistIcon from '@mui/icons-material/Checklist'
+import TerrainIcon from '@mui/icons-material/Terrain'
 import Portal from './pages/Portal'
 import Weather from './pages/Weather'
 import Gallery from './pages/Gallery'
 import ClaudeChat from './pages/ClaudeChat'
 import Tasks from './pages/Tasks'
+import EarthMC from './pages/EarthMC'
 
 const theme = createTheme({
   palette: {
@@ -48,6 +50,7 @@ const NAV = [
   { label: 'Gallery',   mobileLabel: 'Gallery', icon: <PhotoLibraryIcon />, page: 'gallery' },
   { label: 'Claude AI', mobileLabel: 'AI',      icon: <SmartToyIcon />,     page: 'claude'  },
   { label: 'Tasks',     mobileLabel: 'Tasks',   icon: <ChecklistIcon />,    page: 'tasks'   },
+  { label: 'EarthMC',  mobileLabel: 'EMC',     icon: <TerrainIcon />,      page: 'earthmc' },
 ]
 
 export default function App() {
@@ -90,6 +93,7 @@ export default function App() {
       case 'gallery': return <Gallery />
       case 'claude':  return <ClaudeChat />
       case 'tasks':   return <Tasks />
+      case 'earthmc': return <EarthMC />
       default:        return <Portal />
     }
   }

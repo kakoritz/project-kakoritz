@@ -19,7 +19,9 @@ jobs:
 
       - name: Build and push dashboard
         run: |
-          docker build -t ghcr.io/kakoritz/project-kakoritz:latest .
+          docker build \
+            --build-arg VITE_EARTHMC_API_KEY=${{ secrets.VITE_EARTHMC_API_KEY }} \
+            -t ghcr.io/kakoritz/project-kakoritz:latest .
           docker push ghcr.io/kakoritz/project-kakoritz:latest
 
   build-photo-api:
