@@ -108,16 +108,16 @@ export default function EarthMC() {
 
   // ── API calls ───────────────────────────────────────────────────────────────
   const getUUID = useCallback(async (): Promise<string> => {
-    const res = await fetch(`${API_BASE}/players`, {
+    const res = await fetch(`${PHOTO_API}/api/earthmc/players`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: [PLAYER_NAME] }),
     })
     if (!res.ok) throw new Error(`Players API ${res.status}`)
-    const data = await res.json() as { name: string; UUID: string }[]
+    const data = await res.json() as { name: string; uuid: string }[]
     const player = data.find(p => p.name.toLowerCase() === PLAYER_NAME.toLowerCase())
-    if (!player?.UUID) throw new Error(`Player "${PLAYER_NAME}" not found`)
-    return player.UUID
+    if (!player?.uuid) throw new Error(`Player "${PLAYER_NAME}" not found`)
+    return player.uuid
   }, [])
 
   const fetchShops = useCallback(async (playerUUID: string) => {
@@ -140,7 +140,7 @@ export default function EarthMC() {
   }, [])
 
   const fetchNation = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/nations`, {
+    const res = await fetch(`${PHOTO_API}/api/earthmc/nations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: [NATION_NAME] }),

@@ -115,6 +115,23 @@ app.delete('/api/tasks/:id', (req, res) => {
 // Browser can't hit api.earthmc.net directly with auth headers (CORS preflight
 // returns 404, not 2xx). Proxy server-to-server instead.
 
+async function emcProxy(path, body, res) {
+  try {
+    const r = await fetch(`https://api.earthmc.net/v4${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await r.json()
+    res.status(r.status).json(data)
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+}
+
+app.post('/api/earthmc/players', (req, res) => emcProxy('/players', req.body, res))
+app.post('/api/earthmc/nations', (req, res) => emcProxy('/nations', req.body, res))
+
 app.post('/api/earthmc/shop', async (req, res) => {
   const key = process.env.EARTHMC_API_KEY || ''
   if (!key) return res.status(503).json({ error: 'EARTHMC_API_KEY not configured on server' })
