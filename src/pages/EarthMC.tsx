@@ -216,7 +216,7 @@ export default function EarthMC() {
     try {
       setLoading(true)
       setError(null)
-      const playerUUID = existingUUID ?? uuid || await getUUID()
+      const playerUUID = existingUUID ?? (uuid || await getUUID())
       if (!uuid) setUuid(playerUUID)
       await Promise.all([fetchShops(playerUUID), fetchNation(), fetchOnline()])
     } catch (e) {
