@@ -92,16 +92,16 @@ const SSE_EVENTS = 'ShopSoldItem,ShopBoughtItem,ShopOutOfStock,ShopOutOfSpace,Sh
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function EarthMC() {
-  const [tab, setTab]                 = useState(0)
-  const [shops, setShops]             = useState<Shop[]>([])
-  const [nation, setNation]           = useState<NationInfo | null>(null)
-  const [online, setOnline]           = useState<string[]>([])
-  const [events, setEvents]           = useState<LiveEvent[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [error, setError]             = useState<string | null>(null)
+  const [tab, setTab]                   = useState(0)
+  const [shops, setShops]               = useState<Shop[]>([])
+  const [nation, setNation]             = useState<NationInfo | null>(null)
+  const [online, setOnline]             = useState<string[]>([])
+  const [events, setEvents]             = useState<LiveEvent[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [error, setError]               = useState<string | null>(null)
   const [sseConnected, setSseConnected] = useState(false)
-  const [search, setSearch]           = useState('')
-  const [uuid, setUuid]               = useState('')
+  const [search, setSearch]             = useState('')
+  const [uuid, setUuid]                 = useState('')
 
   const sseAbort = useRef<AbortController | null>(null)
 
@@ -171,7 +171,7 @@ export default function EarthMC() {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          buf += dec.decode(value, { stream: true })
+          buf += dec.decode(value as BufferSource, { stream: true })
           const lines = buf.split('\n')
           buf = lines.pop() ?? ''
 
@@ -180,13 +180,13 @@ export default function EarthMC() {
               eventType = line.slice(7).trim()
             } else if (line.startsWith('data: ') && eventType) {
               try {
-                const payload = JSON.parse(line.slice(6))
-                const shop: Shop | undefined = payload.shop ?? (payload.item ? payload : undefined)
+                const payload = JSON.parse(line.slice(6)) as Record<string, unknown>
+                const shop = (payload.shop ?? (payload.item ? payload : undefined)) as Shop | undefined
                 const ev: LiveEvent = {
                   id:         `${Date.now()}-${Math.random()}`,
                   eventType,
-                  timestamp:  payload.timestamp ?? Math.floor(Date.now() / 1000),
-                  playerName: payload.buyer ?? payload.seller ?? undefined,
+                  timestamp:  (payload.timestamp as number) ?? Math.floor(Date.now() / 1000),
+                  playerName: (payload.buyer ?? payload.seller) as string | undefined,
                   shop,
                 }
                 setEvents(prev => [ev, ...prev].slice(0, 150))
@@ -207,7 +207,7 @@ export default function EarthMC() {
       })
       .catch(err => {
         setSseConnected(false)
-        if (err.name !== 'AbortError') setTimeout(connectSSE, 5000)
+        if ((err as Error).name !== 'AbortError') setTimeout(connectSSE, 5000)
       })
   }, [])
 
@@ -228,14 +228,12 @@ export default function EarthMC() {
 
   useEffect(() => { loadAll() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll shops every 30s
   useEffect(() => {
     if (!uuid) return
-    const id = setInterval(() => fetchShops(uuid).catch(() => {}), SHOP_POLL)
+    const id = setInterval(() => { fetchShops(uuid).catch(() => {}) }, SHOP_POLL)
     return () => clearInterval(id)
   }, [uuid, fetchShops])
 
-  // Connect SSE
   useEffect(() => {
     connectSSE()
     return () => sseAbort.current?.abort()
@@ -246,16 +244,14 @@ export default function EarthMC() {
     fmtItem(s.item).toLowerCase().includes(search.toLowerCase())
   )
 
-  const alerts = shops.filter(s => stockLevel(s.stock) !== 'ok')
+  const alerts   = shops.filter(s => stockLevel(s.stock) !== 'ok')
   const outCount = alerts.filter(s => s.stock === 0).length
   const lowCount = alerts.filter(s => s.stock > 0 && s.stock < 64).length
 
-  // ── Guard ───────────────────────────────────────────────────────────────────
   if (!API_KEY) {
     return (
       <Alert severity="warning" sx={{ m: 2 }}>
-        Add <code>VITE_EARTHMC_API_KEY=your_key</code> to <code>.env.local</code> for local dev,
-        and to GitHub Secrets for production builds.
+        Add <code>VITE_EARTHMC_API_KEY=your_key</code> to GitHub Secrets.
       </Alert>
     )
   }
@@ -263,10 +259,13 @@ export default function EarthMC() {
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
 
-      {/* ── Page header ────────────────────────────────────────────────────── */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2} flexWrap="wrap" gap={1}>
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <Stack
+        direction="row"
+        sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}
+      >
         <Box>
-          <Typography variant="h5" fontWeight={800} letterSpacing={1}>
+          <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 1 }}>
             EarthMC
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -274,7 +273,7 @@ export default function EarthMC() {
           </Typography>
         </Box>
 
-        <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
+        <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
           <Chip
             icon={<PeopleIcon sx={{ fontSize: '14px !important' }} />}
             label={`${online.length} online`}
@@ -300,16 +299,10 @@ export default function EarthMC() {
         </Stack>
       </Stack>
 
-      {/* ── Error ──────────────────────────────────────────────────────────── */}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* ── Stock alert banner ─────────────────────────────────────────────── */}
       {alerts.length > 0 && (
-        <Alert
-          severity={outCount > 0 ? 'error' : 'warning'}
-          icon={<WarningAmberIcon />}
-          sx={{ mb: 2 }}
-        >
+        <Alert severity={outCount > 0 ? 'error' : 'warning'} icon={<WarningAmberIcon />} sx={{ mb: 2 }}>
           {outCount > 0 && <><strong>{outCount} out of stock</strong>{lowCount > 0 ? ' · ' : ''}</>}
           {lowCount > 0 && <><strong>{lowCount} low stock</strong></>}
           {' — '}
@@ -317,7 +310,6 @@ export default function EarthMC() {
         </Alert>
       )}
 
-      {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <Tabs
         value={tab}
         onChange={(_, v: number) => setTab(v)}
@@ -327,36 +319,19 @@ export default function EarthMC() {
           '& .MuiTabs-indicator': { bgcolor: 'primary.main' },
         }}
       >
-        <Tab
-          label={`Shops (${shops.length})`}
-          icon={<StorefrontIcon sx={{ fontSize: 16 }} />}
-          iconPosition="start"
-          sx={{ minWidth: 120 }}
-        />
-        <Tab
-          label={events.length ? `Live Feed (${events.length})` : 'Live Feed'}
-          sx={{ minWidth: 130 }}
-        />
-        <Tab
-          label="Nation"
-          icon={<SecurityIcon sx={{ fontSize: 16 }} />}
-          iconPosition="start"
-          sx={{ minWidth: 100 }}
-        />
+        <Tab label={`Shops (${shops.length})`} icon={<StorefrontIcon sx={{ fontSize: 16 }} />} iconPosition="start" sx={{ minWidth: 120 }} />
+        <Tab label={events.length ? `Live Feed (${events.length})` : 'Live Feed'} sx={{ minWidth: 130 }} />
+        <Tab label="Nation" icon={<SecurityIcon sx={{ fontSize: 16 }} />} iconPosition="start" sx={{ minWidth: 100 }} />
       </Tabs>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB 0 — SHOPS
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ══ TAB 0 — SHOPS ══════════════════════════════════════════════════════ */}
       {tab === 0 && (
         <Box>
           {loading && (
-            <Box sx={{ mb: 2 }}>
-              <Stack direction="row" gap={1} alignItems="center">
-                <CircularProgress size={14} />
-                <Typography variant="caption" color="text.secondary">Loading shops…</Typography>
-              </Stack>
-            </Box>
+            <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mb: 2 }}>
+              <CircularProgress size={14} />
+              <Typography variant="caption" color="text.secondary">Loading shops…</Typography>
+            </Stack>
           )}
 
           <TextField
@@ -364,12 +339,14 @@ export default function EarthMC() {
             placeholder="Filter items…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+              },
             }}
             sx={{ mb: 2, width: { xs: '100%', sm: 300 } }}
           />
@@ -378,7 +355,7 @@ export default function EarthMC() {
             const group = filtered.filter(s => s.type === type)
             if (!group.length) return null
             return (
-              <Box key={type} mb={3}>
+              <Box key={type} sx={{ mb: 3 }}>
                 <Typography
                   variant="overline"
                   color="text.secondary"
@@ -391,46 +368,30 @@ export default function EarthMC() {
                   {group
                     .sort((a, b) => stockLevel(a.stock) === 'out' ? -1 : stockLevel(b.stock) === 'out' ? 1 : a.stock - b.stock)
                     .map((shop, i) => {
-                      const level = stockLevel(shop.stock)
-                      const col   = STOCK_COLOR[level]
+                      const level     = stockLevel(shop.stock)
+                      const col       = STOCK_COLOR[level]
                       const priceEach = shop.price / shop.amount
-
                       return (
                         <Grid key={i} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
                           <Card
                             variant="outlined"
                             sx={{
                               height: '100%',
-                              borderColor: level === 'out'
-                                ? 'rgba(239,68,68,0.45)'
-                                : level === 'low'
-                                  ? 'rgba(245,158,11,0.35)'
-                                  : 'rgba(255,255,255,0.08)',
+                              borderColor: level === 'out' ? 'rgba(239,68,68,0.45)' : level === 'low' ? 'rgba(245,158,11,0.35)' : 'rgba(255,255,255,0.08)',
                               bgcolor: level === 'out' ? 'rgba(239,68,68,0.06)' : 'background.paper',
                               transition: 'transform 0.15s, border-color 0.15s',
                               '&:hover': { transform: 'translateY(-2px)', borderColor: 'primary.main' },
                             }}
                           >
                             <CardContent sx={{ p: '12px !important' }}>
-                              {/* Item name */}
-                              <Typography
-                                variant="body2"
-                                fontWeight={700}
-                                noWrap
-                                title={fmtItem(shop.item)}
-                                sx={{ mb: 0.75, lineHeight: 1.3 }}
-                              >
+                              <Typography variant="body2" noWrap title={fmtItem(shop.item)}
+                                sx={{ mb: 0.75, lineHeight: 1.3, fontWeight: 700 }}>
                                 {fmtItem(shop.item)}
                               </Typography>
 
-                              {/* Stock indicator */}
-                              <Stack direction="row" alignItems="center" gap={0.5} mb={0.75}>
-                                <Box sx={{
-                                  width: 7, height: 7, borderRadius: '50%',
-                                  bgcolor: col, flexShrink: 0,
-                                  boxShadow: `0 0 5px ${col}80`,
-                                }} />
-                                <Typography variant="caption" color={col} fontWeight={700} sx={{ lineHeight: 1 }}>
+                              <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+                                <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: col, flexShrink: 0, boxShadow: `0 0 5px ${col}80` }} />
+                                <Typography variant="caption" color={col} sx={{ lineHeight: 1, fontWeight: 700 }}>
                                   {shop.stock === 0 ? 'OUT' : shop.stock.toLocaleString()}
                                 </Typography>
                                 {shop.stock > 0 && (
@@ -442,14 +403,9 @@ export default function EarthMC() {
 
                               <Divider sx={{ mb: 0.75, opacity: 0.25 }} />
 
-                              {/* Price */}
-                              <Stack direction="row" justifyContent="space-between" alignItems="baseline">
-                                <Typography variant="caption" color="text.secondary">
-                                  {shop.amount}x
-                                </Typography>
-                                <Typography variant="caption" fontWeight={700} color="#f59e0b">
-                                  {fmtGold(shop.price)}
-                                </Typography>
+                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                <Typography variant="caption" color="text.secondary">{shop.amount}x</Typography>
+                                <Typography variant="caption" color="#f59e0b" sx={{ fontWeight: 700 }}>{fmtGold(shop.price)}</Typography>
                               </Stack>
 
                               {shop.amount > 1 && (
@@ -458,12 +414,8 @@ export default function EarthMC() {
                                 </Typography>
                               )}
 
-                              {/* Coordinates */}
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{ fontSize: 9, display: 'block', mt: 0.5, opacity: 0.45, fontFamily: 'monospace' }}
-                              >
+                              <Typography variant="caption" color="text.secondary"
+                                sx={{ fontSize: 9, display: 'block', mt: 0.5, opacity: 0.45, fontFamily: 'monospace' }}>
                                 {shop.location.x} {shop.location.y} {shop.location.z}
                               </Typography>
                             </CardContent>
@@ -477,21 +429,19 @@ export default function EarthMC() {
           })}
 
           {!loading && filtered.length === 0 && (
-            <Typography color="text.secondary" textAlign="center" py={6}>
+            <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
               {shops.length === 0 ? 'No shops returned — check your API key.' : 'No items match the filter.'}
             </Typography>
           )}
         </Box>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB 1 — LIVE FEED
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ══ TAB 1 — LIVE FEED ══════════════════════════════════════════════════ */}
       {tab === 1 && (
         <Box>
           {!sseConnected && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              <Stack direction="row" gap={1} alignItems="center">
+              <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
                 <CircularProgress size={12} />
                 <span>Connecting to live event stream…</span>
               </Stack>
@@ -499,44 +449,24 @@ export default function EarthMC() {
           )}
 
           {events.length === 0 ? (
-            <Box textAlign="center" py={8}>
-              <Typography color="text.secondary" mb={1}>Waiting for shop activity…</Typography>
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography color="text.secondary" sx={{ mb: 1 }}>Waiting for shop activity…</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.5 }}>
                 Sales, purchases, and stock alerts will appear here in real time.
               </Typography>
             </Box>
           ) : (
-            <Stack gap={1} sx={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', pr: 0.5 }}>
+            <Stack sx={{ gap: 1, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', pr: 0.5 }}>
               {events.map(ev => {
                 const col = EVENT_COLOR[ev.eventType] ?? '#6366f1'
                 return (
-                  <Card
-                    key={ev.id}
-                    variant="outlined"
-                    sx={{
-                      borderColor: `${col}35`,
-                      bgcolor:     `${col}08`,
-                      flexShrink: 0,
-                    }}
-                  >
+                  <Card key={ev.id} variant="outlined" sx={{ borderColor: `${col}35`, bgcolor: `${col}08`, flexShrink: 0 }}>
                     <CardContent sx={{ py: '10px !important', px: '14px !important' }}>
-                      <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
-                        <Chip
-                          label={EVENT_LABEL[ev.eventType] ?? ev.eventType}
-                          size="small"
-                          sx={{
-                            bgcolor: `${col}20`,
-                            color:   col,
-                            fontWeight: 700,
-                            height: 20,
-                            fontSize: 10,
-                            letterSpacing: 0.3,
-                          }}
-                        />
+                      <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Chip label={EVENT_LABEL[ev.eventType] ?? ev.eventType} size="small"
+                          sx={{ bgcolor: `${col}20`, color: col, fontWeight: 700, height: 20, fontSize: 10, letterSpacing: 0.3 }} />
                         {ev.shop && (
-                          <Typography variant="body2" fontWeight={600}>
-                            {fmtItem(ev.shop.item)}
-                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{fmtItem(ev.shop.item)}</Typography>
                         )}
                         {ev.playerName && (
                           <Typography variant="caption" color="text.secondary">
@@ -544,15 +474,12 @@ export default function EarthMC() {
                           </Typography>
                         )}
                         {ev.shop && (
-                          <Typography variant="caption" color="#f59e0b" fontWeight={600}>
-                            {fmtGold(ev.shop.price)}
-                          </Typography>
+                          <Typography variant="caption" color="#f59e0b" sx={{ fontWeight: 600 }}>{fmtGold(ev.shop.price)}</Typography>
                         )}
                         <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', fontFamily: 'monospace', fontSize: 11 }}>
                           {fmtTime(ev.timestamp)}
                         </Typography>
                       </Stack>
-
                       {ev.shop && (
                         <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25, display: 'block', fontSize: 10, opacity: 0.6 }}>
                           {ev.shop.amount}× · stock after: {ev.shop.stock.toLocaleString()}
@@ -567,13 +494,11 @@ export default function EarthMC() {
         </Box>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB 2 — NATION
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ══ TAB 2 — NATION ═════════════════════════════════════════════════════ */}
       {tab === 2 && (
         <Box>
           {loading && !nation && (
-            <Stack direction="row" gap={1} alignItems="center" mb={2}>
+            <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mb: 2 }}>
               <CircularProgress size={14} />
               <Typography variant="caption" color="text.secondary">Loading nation data…</Typography>
             </Stack>
@@ -582,15 +507,14 @@ export default function EarthMC() {
           {nation ? (
             <Grid container spacing={2}>
 
-              {/* Nation overview card */}
               <Grid size={{ xs: 12, md: 4 }}>
                 <Card variant="outlined" sx={{ height: '100%' }}>
                   <CardContent>
-                    <Stack direction="row" alignItems="center" gap={1} mb={2}>
+                    <Stack direction="row" sx={{ alignItems: 'center', gap: 1, mb: 2 }}>
                       <SecurityIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-                      <Typography variant="h6" fontWeight={800}>{nation.name}</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>{nation.name}</Typography>
                     </Stack>
-                    <Stack gap={1.25}>
+                    <Stack sx={{ gap: 1.25 }}>
                       <StatRow label="King"        value={nation.king?.name ?? '—'} />
                       <StatRow label="Capital"     value={nation.capital?.name ?? '—'} />
                       <StatRow label="Balance"     value={fmtGold(nation.stats?.balance ?? 0)} gold />
@@ -603,11 +527,10 @@ export default function EarthMC() {
                 </Card>
               </Grid>
 
-              {/* Residents — green if online */}
               <Grid size={{ xs: 12, md: 4 }}>
                 <Card variant="outlined" sx={{ height: '100%' }}>
                   <CardContent>
-                    <Typography variant="overline" color="text.secondary" letterSpacing={2} fontWeight={700}>
+                    <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700 }}>
                       Residents ({nation.residents.length})
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5, mt: 0.25, opacity: 0.6 }}>
@@ -622,19 +545,14 @@ export default function EarthMC() {
                         .map(r => {
                           const isOnline = online.includes(r.name)
                           return (
-                            <Chip
-                              key={r.name}
-                              label={r.name}
-                              size="small"
+                            <Chip key={r.name} label={r.name} size="small"
                               sx={{
-                                height: 22,
-                                fontSize: 11,
+                                height: 22, fontSize: 11,
                                 bgcolor: isOnline ? 'rgba(34,197,94,0.14)' : 'rgba(255,255,255,0.05)',
                                 color:   isOnline ? '#22c55e' : 'text.secondary',
                                 border:  isOnline ? '1px solid rgba(34,197,94,0.3)' : '1px solid transparent',
                                 fontWeight: isOnline ? 700 : 400,
-                              }}
-                            />
+                              }} />
                           )
                         })}
                     </Box>
@@ -642,42 +560,39 @@ export default function EarthMC() {
                 </Card>
               </Grid>
 
-              {/* Allies & Enemies */}
               <Grid size={{ xs: 12, md: 4 }}>
-                <Stack gap={2} height="100%">
+                <Stack sx={{ gap: 2, height: '100%' }}>
                   <Card variant="outlined">
                     <CardContent>
-                      <Typography variant="overline" color="text.secondary" letterSpacing={2} fontWeight={700}>
+                      <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700 }}>
                         Allies ({nation.allies.length})
                       </Typography>
-                      {nation.allies.length === 0 ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>None</Typography>
-                      ) : (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                          {nation.allies.map(a => (
-                            <Chip key={a.name} label={a.name} size="small"
-                              sx={{ bgcolor: 'rgba(99,102,241,0.12)', color: '#a5b4fc', fontSize: 11, height: 22 }} />
-                          ))}
-                        </Box>
-                      )}
+                      {nation.allies.length === 0
+                        ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>None</Typography>
+                        : <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                            {nation.allies.map(a => (
+                              <Chip key={a.name} label={a.name} size="small"
+                                sx={{ bgcolor: 'rgba(99,102,241,0.12)', color: '#a5b4fc', fontSize: 11, height: 22 }} />
+                            ))}
+                          </Box>
+                      }
                     </CardContent>
                   </Card>
 
                   <Card variant="outlined">
                     <CardContent>
-                      <Typography variant="overline" color="text.secondary" letterSpacing={2} fontWeight={700}>
+                      <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700 }}>
                         Enemies ({nation.enemies.length})
                       </Typography>
-                      {nation.enemies.length === 0 ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>None</Typography>
-                      ) : (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                          {nation.enemies.map(e => (
-                            <Chip key={e.name} label={e.name} size="small"
-                              sx={{ bgcolor: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: 11, height: 22 }} />
-                          ))}
-                        </Box>
-                      )}
+                      {nation.enemies.length === 0
+                        ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>None</Typography>
+                        : <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                            {nation.enemies.map(e => (
+                              <Chip key={e.name} label={e.name} size="small"
+                                sx={{ bgcolor: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: 11, height: 22 }} />
+                            ))}
+                          </Box>
+                      }
                     </CardContent>
                   </Card>
                 </Stack>
@@ -685,7 +600,7 @@ export default function EarthMC() {
 
             </Grid>
           ) : (
-            !loading && <Alert severity="info">Nation "{NATION_NAME}" not found. Check the name matches exactly in-game.</Alert>
+            !loading && <Alert severity="info">Nation &quot;{NATION_NAME}&quot; not found — check the spelling matches in-game.</Alert>
           )}
         </Box>
       )}
@@ -697,9 +612,9 @@ export default function EarthMC() {
 // ── Tiny helper ───────────────────────────────────────────────────────────────
 function StatRow({ label, value, gold }: { label: string; value: string; gold?: boolean }) {
   return (
-    <Stack direction="row" justifyContent="space-between" alignItems="center">
+    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
       <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Typography variant="body2" fontWeight={gold ? 700 : 500} color={gold ? '#f59e0b' : 'text.primary'}>
+      <Typography variant="body2" color={gold ? '#f59e0b' : 'text.primary'} sx={{ fontWeight: gold ? 700 : 500 }}>
         {value}
       </Typography>
     </Stack>
