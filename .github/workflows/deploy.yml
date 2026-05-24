@@ -39,7 +39,7 @@ jobs:
           ssh aspiker@192.168.1.251 "mkdir -p /volume2/docker/kakoritz-data"
           ssh aspiker@192.168.1.251 "$DOCKER stop photo-api || true"
           ssh aspiker@192.168.1.251 "$DOCKER rm photo-api || true"
-          ssh aspiker@192.168.1.251 "$DOCKER run -d --name photo-api --restart unless-stopped -p 8586:3001 -v '/volume1/Data/Pictures/FAMILY:/photos:ro' -v '/volume2/docker/kakoritz-data:/data' -e TASKS_FILE=/data/tasks.json photo-api:latest"
+          ssh aspiker@192.168.1.251 "$DOCKER run -d --name photo-api --restart unless-stopped -p 8586:3001 -v '/volume1/Data/Pictures/FAMILY:/photos:ro' -v '/volume2/docker/kakoritz-data:/data' -e TASKS_FILE=/data/tasks.json -e EARTHMC_API_KEY=${{ secrets.VITE_EARTHMC_API_KEY }} photo-api:latest"
 
   build-claude-api:
     runs-on: self-hosted

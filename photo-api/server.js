@@ -111,6 +111,57 @@ app.delete('/api/tasks/:id', (req, res) => {
   res.json({ ok: true })
 })
 
+// ── EarthMC proxies ───────────────────────────────────────────────────────────
+// Browser can't hit api.earthmc.net directly with auth headers (CORS preflight
+// returns 404, not 2xx). Proxy server-to-server instead.
+
+app.post('/api/earthmc/shop', async (req, res) => {
+  const key = process.env.EARTHMC_API_KEY || ''
+  if (!key) return res.status(503).json({ error: 'EARTHMC_API_KEY not configured on server' })
+  try {
+    const r = await fetch('https://api.earthmc.net/v4/shop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ ...req.body, key }),
+    })
+    const data = await r.json()
+    res.status(r.status).json(data)
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+})
+
+app.get('/api/earthmc/events', async (req, res) => {
+  const key = process.env.EARTHMC_API_KEY || ''
+  if (!key) return res.status(503).json({ error: 'EARTHMC_API_KEY not configured on server' })
+  const ctrl = new AbortController()
+  req.on('close', () => ctrl.abort())
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+  try {
+    const listen = req.query.listen || ''
+    const r = await fetch(`https://api.earthmc.net/v4/events?listen=${listen}`, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: ctrl.signal,
+    })
+    if (!r.ok || !r.body) {
+      res.write(`data: {"error":"EarthMC events ${r.status}"}\n\n`)
+      return res.end()
+    }
+    const reader = r.body.getReader()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      res.write(Buffer.from(value))
+    }
+  } catch (e) {
+    if (!ctrl.signal.aborted) res.write(`data: {"error":"${e.message}"}\n\n`)
+  }
+  res.end()
+})
+
 app.get('/health', (_, res) => res.json({ status: 'ok', root: ROOT }))
 
 app.listen(3001, () => console.log(`Photo API — root: ${ROOT}`))

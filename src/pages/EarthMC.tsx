@@ -18,6 +18,7 @@ const API_KEY     = import.meta.env.VITE_EARTHMC_API_KEY  ?? ''
 const PLAYER_NAME = import.meta.env.VITE_EARTHMC_PLAYER   ?? 'kakoritz'
 const NATION_NAME = import.meta.env.VITE_EARTHMC_NATION   ?? 'Narmada'
 const API_BASE    = 'https://api.earthmc.net/v4'
+const PHOTO_API   = 'http://192.168.1.251:8586'
 const SHOP_POLL   = 30_000
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -122,12 +123,15 @@ export default function EarthMC() {
   const fetchShops = useCallback(async (playerUUID: string) => {
     setShopError(null)
     try {
-      const res = await fetch(`${API_BASE}/shop`, {
+      const res = await fetch(`${PHOTO_API}/api/earthmc/shop`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
-        body: JSON.stringify({ query: [playerUUID], key: API_KEY }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: [playerUUID] }),
       })
-      if (!res.ok) throw new Error(`Shop API returned ${res.status}`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(body.error ?? `Shop API returned ${res.status}`)
+      }
       const data = await res.json()
       setShops(Array.isArray(data) ? data as Shop[] : [])
     } catch (e) {
@@ -160,8 +164,7 @@ export default function EarthMC() {
     const ctrl = new AbortController()
     sseAbort.current = ctrl
 
-    fetch(`${API_BASE}/events?listen=${SSE_EVENTS}`, {
-      headers: { Authorization: `Bearer ${API_KEY}` },
+    fetch(`${PHOTO_API}/api/earthmc/events?listen=${SSE_EVENTS}`, {
       signal: ctrl.signal,
     })
       .then(async res => {
