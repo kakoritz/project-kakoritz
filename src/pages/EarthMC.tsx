@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Alert, Box, Card, CardContent, Chip, CircularProgress,
+  Dialog, DialogContent, DialogTitle,
   Divider, Grid, IconButton, InputAdornment,
   Stack, Tab, Tabs, TextField, Tooltip, Typography,
 } from '@mui/material'
@@ -12,6 +13,8 @@ import WifiOffIcon from '@mui/icons-material/WifiOff'
 import PeopleIcon from '@mui/icons-material/People'
 import SecurityIcon from '@mui/icons-material/Security'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
+import LaunchIcon from '@mui/icons-material/Launch'
+import CloseIcon from '@mui/icons-material/Close'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const API_KEY     = import.meta.env.VITE_EARTHMC_API_KEY  ?? ''
@@ -36,9 +39,35 @@ interface NationInfo {
   king?: { name: string }
   capital?: { name: string }
   residents: { name: string }[]
+  towns?: { name: string; uuid: string }[]
   allies: { name: string }[]
   enemies: { name: string }[]
   stats?: { balance?: number; numTownBlocks?: number }
+}
+
+interface TownInfo {
+  name: string
+  uuid: string
+  board?: string
+  mayor?: { name: string; uuid: string }
+  stats?: { numTownBlocks?: number; maxTownBlocks?: number; numResidents?: number; balance?: number }
+  coordinates?: { spawn?: { x: number; y: number; z: number }; homeBlock?: [number, number] }
+  status?: { isCapital?: boolean; isPublic?: boolean; isOpen?: boolean; isNeutral?: boolean }
+  residents?: { name: string; uuid: string }[]
+  timestamps?: { registered?: number }
+}
+
+interface PlayerInfo {
+  name: string
+  uuid: string
+  title?: string
+  about?: string
+  town?: { name: string }
+  nation?: { name: string }
+  timestamps?: { registered?: number; lastOnline?: number }
+  status?: { isOnline?: boolean }
+  stats?: { balance?: number; numFriends?: number }
+  ranks?: { townRanks?: string[]; nationRanks?: string[] }
 }
 
 interface LiveEvent {
@@ -91,20 +120,30 @@ const EVENT_LABEL: Record<string, string> = {
 
 const SSE_EVENTS = 'ShopSoldItem,ShopBoughtItem,ShopOutOfStock,ShopOutOfSpace,ShopOutOfGold'
 
+const mapUrl = (x: number, z: number) =>
+  `https://map.earthmc.net/?world=minecraft_overworld&zoom=5&x=${Math.round(x)}&z=${Math.round(z)}`
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function EarthMC() {
-  const [tab, setTab]                   = useState(0)
-  const [shops, setShops]               = useState<Shop[]>([])
-  const [nation, setNation]             = useState<NationInfo | null>(null)
-  const [online, setOnline]             = useState<string[]>([])
-  const [events, setEvents]             = useState<LiveEvent[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [shopError, setShopError]       = useState<string | null>(null)
-  const [sseConnected, setSseConnected] = useState(false)
-  const [search, setSearch]             = useState('')
-  const [uuid, setUuid]                 = useState('')
+  const [tab, setTab]                       = useState(0)
+  const [shops, setShops]                   = useState<Shop[]>([])
+  const [nation, setNation]                 = useState<NationInfo | null>(null)
+  const [online, setOnline]                 = useState<string[]>([])
+  const [events, setEvents]                 = useState<LiveEvent[]>([])
+  const [loading, setLoading]               = useState(true)
+  const [shopError, setShopError]           = useState<string | null>(null)
+  const [sseConnected, setSseConnected]     = useState(false)
+  const [search, setSearch]                 = useState('')
+  const [uuid, setUuid]                     = useState('')
+  const [towns, setTowns]                   = useState<TownInfo[]>([])
+  const [townsLoading, setTownsLoading]     = useState(false)
+  const [selectedTown, setSelectedTown]     = useState<TownInfo | null>(null)
+  const [playerDialogOpen, setPlayerDialogOpen] = useState(false)
+  const [selectedPlayer, setSelectedPlayer] = useState<PlayerInfo | null>(null)
+  const [playerLoading, setPlayerLoading]   = useState(false)
 
-  const sseAbort = useRef<AbortController | null>(null)
+  const sseAbort        = useRef<AbortController | null>(null)
+  const townsFetchedRef = useRef(false)
 
   // ── API calls ───────────────────────────────────────────────────────────────
   const getUUID = useCallback(async (): Promise<string> => {
@@ -155,6 +194,42 @@ export default function EarthMC() {
     if (!res.ok) return
     const data = await res.json() as { players?: { name: string }[] }
     setOnline(data.players?.map(p => p.name) ?? [])
+  }, [])
+
+  const fetchTowns = useCallback(async (nationData: NationInfo) => {
+    if (!nationData.towns?.length) return
+    setTownsLoading(true)
+    try {
+      const uuids = nationData.towns.map(t => t.uuid)
+      const res = await fetch(`${NAS_API}/api/earthmc/towns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: uuids }),
+      })
+      if (!res.ok) return
+      const data = await res.json() as TownInfo[]
+      setTowns(Array.isArray(data) ? data : [])
+    } catch { /* ignore */ } finally {
+      setTownsLoading(false)
+    }
+  }, [])
+
+  const fetchPlayer = useCallback(async (name: string) => {
+    setSelectedPlayer(null)
+    setPlayerDialogOpen(true)
+    setPlayerLoading(true)
+    try {
+      const res = await fetch(`${NAS_API}/api/earthmc/players`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: [name] }),
+      })
+      if (!res.ok) return
+      const data = await res.json() as PlayerInfo[]
+      if (data[0]) setSelectedPlayer(data[0])
+    } catch { /* ignore */ } finally {
+      setPlayerLoading(false)
+    }
   }, [])
 
   // ── SSE live feed ───────────────────────────────────────────────────────────
@@ -245,6 +320,14 @@ export default function EarthMC() {
     connectSSE()
     return () => sseAbort.current?.abort()
   }, [connectSSE])
+
+  // Reset towns when nation reloads; auto-fetch when Nation tab opens
+  useEffect(() => { townsFetchedRef.current = false; setTowns([]) }, [nation])
+  useEffect(() => {
+    if (tab !== 2 || !nation || townsFetchedRef.current) return
+    townsFetchedRef.current = true
+    fetchTowns(nation)
+  }, [tab, nation, fetchTowns])
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const filtered = shops.filter(s =>
@@ -516,63 +599,48 @@ export default function EarthMC() {
           )}
 
           {nation ? (
-            <Grid container spacing={2}>
+            <>
+              {/* ── Overview strip ─────────────────────────────────────────── */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 1.5, mb: 3 }}>
+                {([
+                  { label: 'King',        value: nation.king?.name ?? '—' },
+                  { label: 'Capital',     value: nation.capital?.name ?? '—' },
+                  { label: 'Balance',     value: fmtGold(nation.stats?.balance ?? 0), gold: true },
+                  { label: 'Residents',   value: String(nation.residents.length) },
+                  { label: 'Town Blocks', value: nation.stats?.numTownBlocks?.toLocaleString() ?? '—' },
+                  { label: 'Online',      value: String(online.filter(n => nation.residents.some(r => r.name === n)).length) },
+                ] as { label: string; value: string; gold?: boolean }[]).map(({ label, value, gold }) => (
+                  <Card key={label} variant="outlined" sx={{ textAlign: 'center', py: 1.5, px: 1 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', letterSpacing: 0.5 }}>{label}</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 800, color: gold ? '#f59e0b' : 'text.primary', mt: 0.25 }}>{value}</Typography>
+                  </Card>
+                ))}
+              </Box>
 
-              <Grid size={{ xs: 12, md: 4 }}>
-                <Card variant="outlined" sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Stack direction="row" sx={{ alignItems: 'center', gap: 1, mb: 2 }}>
-                      <SecurityIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-                      <Typography variant="h6" sx={{ fontWeight: 800 }}>{nation.name}</Typography>
-                    </Stack>
-                    <Stack sx={{ gap: 1.25 }}>
-                      <StatRow label="King"        value={nation.king?.name ?? '—'} />
-                      <StatRow label="Capital"     value={nation.capital?.name ?? '—'} />
-                      <StatRow label="Balance"     value={fmtGold(nation.stats?.balance ?? 0)} gold />
-                      <StatRow label="Residents"   value={nation.residents.length.toString()} />
-                      <StatRow label="Town Blocks" value={nation.stats?.numTownBlocks?.toLocaleString() ?? '—'} />
-                      <StatRow label="Allies"      value={nation.allies.length.toString()} />
-                      <StatRow label="Enemies"     value={nation.enemies.length.toString()} />
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
+              {/* ── Town cards ─────────────────────────────────────────────── */}
+              <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700, display: 'block', mb: 1.5 }}>
+                Towns ({townsLoading ? '…' : towns.length})
+              </Typography>
 
-              <Grid size={{ xs: 12, md: 4 }}>
-                <Card variant="outlined" sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700 }}>
-                      Residents ({nation.residents.length})
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5, mt: 0.25, opacity: 0.6 }}>
-                      Green = currently online
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {[...nation.residents]
-                        .sort((a, b) =>
-                          online.includes(a.name) === online.includes(b.name) ? 0 :
-                          online.includes(a.name) ? -1 : 1
-                        )
-                        .map(r => {
-                          const isOnline = online.includes(r.name)
-                          return (
-                            <Chip key={r.name} label={r.name} size="small"
-                              sx={{
-                                height: 22, fontSize: 11,
-                                bgcolor: isOnline ? 'rgba(34,197,94,0.14)' : 'rgba(255,255,255,0.05)',
-                                color:   isOnline ? '#22c55e' : 'text.secondary',
-                                border:  isOnline ? '1px solid rgba(34,197,94,0.3)' : '1px solid transparent',
-                                fontWeight: isOnline ? 700 : 400,
-                              }} />
-                          )
-                        })}
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+              {townsLoading ? (
+                <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', mb: 3 }}>
+                  <CircularProgress size={14} />
+                  <Typography variant="caption" color="text.secondary">Loading town details…</Typography>
+                </Stack>
+              ) : (
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 2, mb: 3 }}>
+                  {towns.map(town => (
+                    <TownCard key={town.uuid} town={town} online={online} onClick={() => setSelectedTown(town)} />
+                  ))}
+                  {towns.length === 0 && !nation.towns?.length && (
+                    <Typography variant="caption" color="text.secondary">No town data in nation response.</Typography>
+                  )}
+                </Box>
+              )}
 
-              <Grid size={{ xs: 12, md: 4 }}>
-                <Stack sx={{ gap: 2, height: '100%' }}>
+              {/* ── Allies / Enemies ───────────────────────────────────────── */}
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700 }}>
@@ -589,7 +657,8 @@ export default function EarthMC() {
                       }
                     </CardContent>
                   </Card>
-
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700 }}>
@@ -606,13 +675,139 @@ export default function EarthMC() {
                       }
                     </CardContent>
                   </Card>
-                </Stack>
+                </Grid>
               </Grid>
-
-            </Grid>
+            </>
           ) : (
             !loading && <Alert severity="info">Nation &quot;{NATION_NAME}&quot; not found — check the spelling matches in-game.</Alert>
           )}
+
+          {/* ── Town detail dialog ──────────────────────────────────────────── */}
+          <Dialog open={!!selectedTown} onClose={() => setSelectedTown(null)} maxWidth="sm" fullWidth>
+            {selectedTown && (
+              <>
+                <DialogTitle sx={{ pb: 1 }}>
+                  <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>{selectedTown.name}</Typography>
+                      {selectedTown.status?.isCapital && (
+                        <Chip label="★ Capital" size="small" sx={{ bgcolor: 'rgba(245,158,11,0.15)', color: '#f59e0b', height: 20 }} />
+                      )}
+                    </Stack>
+                    <IconButton size="small" onClick={() => setSelectedTown(null)}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                </DialogTitle>
+                <DialogContent>
+                  <Stack sx={{ gap: 1, mb: 2 }}>
+                    <StatRow label="Mayor"       value={selectedTown.mayor?.name ?? '—'} />
+                    <StatRow label="Balance"     value={fmtGold(selectedTown.stats?.balance ?? 0)} gold />
+                    <StatRow label="Town Blocks" value={`${selectedTown.stats?.numTownBlocks ?? 0} / ${selectedTown.stats?.maxTownBlocks ?? 0}`} />
+                    <StatRow label="Residents"   value={String(selectedTown.residents?.length ?? 0)} />
+                  </Stack>
+
+                  <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mb: 2 }}>
+                    {selectedTown.status?.isPublic  && <Chip label="Public"  size="small" sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(34,197,94,0.1)',    color: '#22c55e' }} />}
+                    {selectedTown.status?.isOpen    && <Chip label="Open"    size="small" sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(99,102,241,0.1)',   color: '#a5b4fc' }} />}
+                    {selectedTown.status?.isNeutral && <Chip label="Neutral" size="small" sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(255,255,255,0.07)', color: 'text.secondary' }} />}
+                  </Stack>
+
+                  {selectedTown.coordinates?.spawn && (
+                    <Box sx={{ mb: 2, p: 1.25, bgcolor: 'rgba(255,255,255,0.04)', borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
+                        X {Math.round(selectedTown.coordinates.spawn.x)}, Z {Math.round(selectedTown.coordinates.spawn.z)}
+                      </Typography>
+                      <Chip
+                        label="Open Map" size="small" clickable
+                        icon={<LaunchIcon sx={{ fontSize: '12px !important' }} />}
+                        onClick={() => window.open(mapUrl(selectedTown.coordinates!.spawn!.x, selectedTown.coordinates!.spawn!.z), '_blank', 'noopener,noreferrer')}
+                        sx={{ fontSize: 11, height: 24 }}
+                      />
+                    </Box>
+                  )}
+
+                  <Divider sx={{ mb: 2 }} />
+
+                  <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700, display: 'block', mb: 0.5 }}>
+                    Residents ({selectedTown.residents?.length ?? 0})
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5, opacity: 0.6 }}>
+                    Click a name to look up their stats
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    {[...(selectedTown.residents ?? [])]
+                      .sort((a, b) => online.includes(a.name) === online.includes(b.name) ? 0 : online.includes(a.name) ? -1 : 1)
+                      .map(r => {
+                        const isOnline = online.includes(r.name)
+                        return (
+                          <Chip
+                            key={r.name} label={r.name} size="small" clickable
+                            onClick={() => fetchPlayer(r.name)}
+                            sx={{
+                              height: 24, fontSize: 11,
+                              bgcolor: isOnline ? 'rgba(34,197,94,0.14)' : 'rgba(255,255,255,0.07)',
+                              color:   isOnline ? '#22c55e' : 'text.secondary',
+                              border:  isOnline ? '1px solid rgba(34,197,94,0.3)' : '1px solid transparent',
+                              fontWeight: isOnline ? 700 : 400,
+                              '&:hover': { bgcolor: 'rgba(99,102,241,0.2)', color: '#a5b4fc' },
+                            }}
+                          />
+                        )
+                      })}
+                  </Box>
+                </DialogContent>
+              </>
+            )}
+          </Dialog>
+
+          {/* ── Player detail dialog ────────────────────────────────────────── */}
+          <Dialog open={playerDialogOpen} onClose={() => { setPlayerDialogOpen(false); setSelectedPlayer(null) }} maxWidth="xs" fullWidth>
+            <DialogTitle sx={{ pb: 1 }}>
+              <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                  {playerLoading ? 'Looking up player…' : (selectedPlayer?.name ?? '')}
+                </Typography>
+                <IconButton size="small" onClick={() => { setPlayerDialogOpen(false); setSelectedPlayer(null) }}>
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            </DialogTitle>
+            <DialogContent>
+              {playerLoading ? (
+                <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', py: 3, justifyContent: 'center' }}>
+                  <CircularProgress size={20} />
+                </Stack>
+              ) : selectedPlayer && (
+                <Stack sx={{ gap: 1 }}>
+                  <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
+                    {selectedPlayer.status?.isOnline && (
+                      <Chip label="Online" size="small" sx={{ height: 20, bgcolor: 'rgba(34,197,94,0.14)', color: '#22c55e' }} />
+                    )}
+                    {selectedPlayer.ranks?.townRanks?.map(r => (
+                      <Chip key={r} label={r} size="small" sx={{ height: 20, bgcolor: 'rgba(99,102,241,0.12)', color: '#a5b4fc' }} />
+                    ))}
+                    {selectedPlayer.ranks?.nationRanks?.map(r => (
+                      <Chip key={r} label={`${r} (nation)`} size="small" sx={{ height: 20, bgcolor: 'rgba(245,158,11,0.12)', color: '#f59e0b' }} />
+                    ))}
+                  </Stack>
+                  {selectedPlayer.title  && <StatRow label="Title"   value={selectedPlayer.title} />}
+                  {selectedPlayer.town   && <StatRow label="Town"    value={selectedPlayer.town.name} />}
+                  {selectedPlayer.nation && <StatRow label="Nation"  value={selectedPlayer.nation.name} />}
+                  <StatRow label="Balance" value={fmtGold(selectedPlayer.stats?.balance ?? 0)} gold />
+                  {selectedPlayer.timestamps?.registered && (
+                    <StatRow label="Joined" value={new Date(selectedPlayer.timestamps.registered).toLocaleDateString()} />
+                  )}
+                  {selectedPlayer.timestamps?.lastOnline && (
+                    <StatRow label="Last Online" value={new Date(selectedPlayer.timestamps.lastOnline).toLocaleDateString()} />
+                  )}
+                  {selectedPlayer.stats?.numFriends !== undefined && (
+                    <StatRow label="Friends" value={String(selectedPlayer.stats.numFriends)} />
+                  )}
+                </Stack>
+              )}
+            </DialogContent>
+          </Dialog>
         </Box>
       )}
 
@@ -620,7 +815,7 @@ export default function EarthMC() {
   )
 }
 
-// ── Tiny helper ───────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function StatRow({ label, value, gold }: { label: string; value: string; gold?: boolean }) {
   return (
     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -629,5 +824,71 @@ function StatRow({ label, value, gold }: { label: string; value: string; gold?: 
         {value}
       </Typography>
     </Stack>
+  )
+}
+
+function TownCard({ town, online, onClick }: { town: TownInfo; online: string[]; onClick: () => void }) {
+  const residents    = town.residents ?? []
+  const onlineCount  = residents.filter(r => online.includes(r.name)).length
+  const spawn        = town.coordinates?.spawn
+  return (
+    <Card
+      variant="outlined"
+      onClick={onClick}
+      sx={{
+        cursor: 'pointer',
+        transition: 'transform 0.15s, border-color 0.15s',
+        '&:hover': { transform: 'translateY(-3px)', borderColor: 'primary.main' },
+      }}
+    >
+      <CardContent sx={{ pb: '12px !important' }}>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75, mb: 1.5 }}>
+          <Typography variant="body1" sx={{ fontWeight: 800, flex: 1 }}>{town.name}</Typography>
+          {town.status?.isCapital && (
+            <Chip label="★" size="small" sx={{ height: 18, fontSize: 11, bgcolor: 'rgba(245,158,11,0.15)', color: '#f59e0b', minWidth: 0 }} />
+          )}
+        </Stack>
+
+        <Stack sx={{ gap: 0.75 }}>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" color="text.secondary">Mayor</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>{town.mayor?.name ?? '—'}</Typography>
+          </Stack>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" color="text.secondary">Residents</Typography>
+            <Stack direction="row" sx={{ gap: 0.5, alignItems: 'center' }}>
+              <Typography variant="caption" sx={{ fontWeight: 600 }}>{residents.length}</Typography>
+              {onlineCount > 0 && (
+                <Chip label={`${onlineCount} online`} size="small"
+                  sx={{ height: 16, fontSize: 9, bgcolor: 'rgba(34,197,94,0.14)', color: '#22c55e' }} />
+              )}
+            </Stack>
+          </Stack>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" color="text.secondary">Gold</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: '#f59e0b' }}>{fmtGold(town.stats?.balance ?? 0)}</Typography>
+          </Stack>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" color="text.secondary">Blocks</Typography>
+            <Typography variant="caption">{town.stats?.numTownBlocks ?? 0} / {town.stats?.maxTownBlocks ?? 0}</Typography>
+          </Stack>
+        </Stack>
+
+        {spawn && (
+          <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: 10 }}>
+              {Math.round(spawn.x)}, {Math.round(spawn.z)}
+            </Typography>
+            <IconButton
+              size="small"
+              onClick={e => { e.stopPropagation(); window.open(mapUrl(spawn.x, spawn.z), '_blank', 'noopener,noreferrer') }}
+              sx={{ p: 0.25 }}
+            >
+              <LaunchIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+            </IconButton>
+          </Box>
+        )}
+      </CardContent>
+    </Card>
   )
 }

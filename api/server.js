@@ -133,6 +133,7 @@ async function emcProxy(path, body, res) {
 
 app.post('/api/earthmc/players', (req, res) => emcProxy('/players', req.body, res))
 app.post('/api/earthmc/nations', (req, res) => emcProxy('/nations', req.body, res))
+app.post('/api/earthmc/towns',   (req, res) => emcProxy('/towns',   req.body, res))
 
 app.post('/api/earthmc/shop', async (req, res) => {
   const key = process.env.EARTHMC_API_KEY || ''
