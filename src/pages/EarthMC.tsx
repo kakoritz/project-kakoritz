@@ -10,6 +10,8 @@ import SearchIcon from '@mui/icons-material/Search'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import WifiIcon from '@mui/icons-material/Wifi'
 import WifiOffIcon from '@mui/icons-material/WifiOff'
+import PauseIcon from '@mui/icons-material/Pause'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import PeopleIcon from '@mui/icons-material/People'
 import SecurityIcon from '@mui/icons-material/Security'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
@@ -18,6 +20,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import ForumIcon from '@mui/icons-material/Forum'
 import SportsEsportsIcon from '@mui/icons-material/SportsEsports'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import HistoryIcon from '@mui/icons-material/History'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const API_KEY     = import.meta.env.VITE_EARTHMC_API_KEY  ?? ''
@@ -81,6 +84,18 @@ interface LiveEvent {
   shop?: Shop
 }
 
+interface SaleRecord {
+  id: number
+  recorded_at: string
+  event_type: string
+  player_name: string | null
+  item: string | null
+  price: number | null
+  amount: number | null
+  shop_type: string | null
+  stock: number | null
+}
+
 type StockLevel = 'out' | 'low' | 'ok'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -92,6 +107,12 @@ const fmtGold = (n: number) =>
 
 const fmtTime = (ts: number) =>
   new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+
+const fmtDate = (iso: string) => {
+  const d = new Date(iso)
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
 const stockLevel = (stock: number): StockLevel => {
   if (stock === 0) return 'out'
@@ -166,6 +187,11 @@ export default function EarthMC() {
   const [discordOpen, setDiscordOpen]   = useState(false)
   const [mcOpen, setMcOpen]             = useState(false)
   const [onlineSearch, setOnlineSearch] = useState('')
+  const [ssePaused, setSsePaused]       = useState(false)
+  const [saleHistory, setSaleHistory]   = useState<SaleRecord[]>([])
+  const [salesTotal, setSalesTotal]     = useState(0)
+  const [showHistory, setShowHistory]   = useState(false)
+  const ssePausedRef = useRef(false)
 
   // ── API calls ───────────────────────────────────────────────────────────────
   const getUUID = useCallback(async (): Promise<string> => {
@@ -266,7 +292,7 @@ export default function EarthMC() {
 
   // ── SSE live feed ───────────────────────────────────────────────────────────
   const connectSSE = useCallback(() => {
-    if (!API_KEY) return
+    if (!API_KEY || ssePausedRef.current) return
     sseAbort.current?.abort()
     const ctrl = new AbortController()
     sseAbort.current = ctrl
@@ -305,6 +331,22 @@ export default function EarthMC() {
                   shop,
                 }
                 setEvents(prev => [ev, ...prev].slice(0, 150))
+                // Persist sales/purchases to NAS SQLite (server is primary recorder but this is a backup)
+                if (['ShopSoldItem', 'ShopBoughtItem'].includes(eventType)) {
+                  fetch(`${NAS_API}/api/earthmc/sales`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      event_type: eventType,
+                      player_name: ev.playerName,
+                      item: shop?.item,
+                      price: shop?.price,
+                      amount: shop?.amount,
+                      shop_type: shop?.type,
+                      stock: shop?.stock,
+                    }),
+                  }).catch(() => {})
+                }
                 if (shop) {
                   setShops(prev => prev.map(s =>
                     s.item === shop.item &&
@@ -322,9 +364,35 @@ export default function EarthMC() {
       })
       .catch(err => {
         setSseConnected(false)
-        if ((err as Error).name !== 'AbortError') setTimeout(connectSSE, 5000)
+        if ((err as Error).name !== 'AbortError' && !ssePausedRef.current) {
+          setTimeout(connectSSE, 5000)
+        }
       })
   }, [])
+
+  const fetchSaleHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`${NAS_API}/api/earthmc/sales?limit=200`)
+      if (!res.ok) return
+      const data = await res.json() as { total: number; rows: SaleRecord[] }
+      setSaleHistory(data.rows ?? [])
+      setSalesTotal(data.total ?? 0)
+    } catch { /* ignore */ }
+  }, [])
+
+  const toggleSSE = useCallback(() => {
+    setSsePaused(prev => {
+      const next = !prev
+      ssePausedRef.current = next
+      if (next) {
+        sseAbort.current?.abort()
+        setSseConnected(false)
+      } else {
+        connectSSE()
+      }
+      return next
+    })
+  }, [connectSSE])
 
   // ── Initial load ────────────────────────────────────────────────────────────
   const loadAll = useCallback(async (existingUUID?: string) => {
@@ -332,13 +400,13 @@ export default function EarthMC() {
     try {
       const playerUUID = existingUUID ?? (uuid || await getUUID())
       if (!uuid) setUuid(playerUUID)
-      await Promise.allSettled([fetchShops(playerUUID), fetchNation(), fetchOnline()])
+      await Promise.allSettled([fetchShops(playerUUID), fetchNation(), fetchOnline(), fetchSaleHistory()])
     } catch (e) {
       setShopError((e as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [uuid, getUUID, fetchShops, fetchNation, fetchOnline])
+  }, [uuid, getUUID, fetchShops, fetchNation, fetchOnline, fetchSaleHistory])
 
   useEffect(() => { loadAll() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -347,6 +415,12 @@ export default function EarthMC() {
     const id = setInterval(() => { fetchShops(uuid).catch(() => {}) }, SHOP_POLL)
     return () => clearInterval(id)
   }, [uuid, fetchShops])
+
+  // Refresh sale history every 2 min
+  useEffect(() => {
+    const id = setInterval(fetchSaleHistory, 2 * 60_000)
+    return () => clearInterval(id)
+  }, [fetchSaleHistory])
 
   useEffect(() => {
     connectSSE()
@@ -595,57 +669,162 @@ export default function EarthMC() {
       {/* ══ TAB 1 — LIVE FEED ══════════════════════════════════════════════════ */}
       {tab === 1 && (
         <Box>
-          {!sseConnected && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
-                <CircularProgress size={12} />
-                <span>Connecting to live event stream…</span>
-              </Stack>
-            </Alert>
+          {/* Controls row */}
+          <Stack direction="row" sx={{ alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+            <Tooltip title={ssePaused ? 'Resume live feed' : 'Pause live feed'}>
+              <Chip
+                icon={ssePaused
+                  ? <PlayArrowIcon  sx={{ fontSize: '14px !important' }} />
+                  : <PauseIcon      sx={{ fontSize: '14px !important' }} />}
+                label={ssePaused ? 'Paused' : (sseConnected ? 'Live' : 'Connecting…')}
+                onClick={toggleSSE}
+                size="small"
+                sx={{
+                  cursor: 'pointer',
+                  bgcolor: ssePaused ? 'rgba(239,68,68,0.12)' : sseConnected ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)',
+                  color:   ssePaused ? '#ef4444'               : sseConnected ? '#22c55e'               : '#f59e0b',
+                }}
+              />
+            </Tooltip>
+            {!ssePaused && !sseConnected && <CircularProgress size={14} />}
+            <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.6 }}>
+              {events.length} events this session
+            </Typography>
+            <Box sx={{ flex: 1 }} />
+            <Tooltip title={showHistory ? 'Show live feed' : `View all-time history (${salesTotal.toLocaleString()} sales)`}>
+              <Chip
+                icon={<HistoryIcon sx={{ fontSize: '14px !important' }} />}
+                label={showHistory ? 'Live' : `History (${salesTotal.toLocaleString()})`}
+                onClick={() => { setShowHistory(p => !p); if (!showHistory) fetchSaleHistory() }}
+                size="small"
+                sx={{
+                  cursor: 'pointer',
+                  bgcolor: showHistory ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)',
+                  color: '#a5b4fc',
+                }}
+              />
+            </Tooltip>
+          </Stack>
+
+          {/* Live events */}
+          {!showHistory && (
+            <>
+              {ssePaused && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Live feed is paused — server continues recording sales in the background.
+                </Alert>
+              )}
+              {events.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 8 }}>
+                  <Typography color="text.secondary" sx={{ mb: 1 }}>
+                    {ssePaused ? 'Live feed paused.' : 'Waiting for shop activity…'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.5 }}>
+                    Sales, purchases, and stock alerts appear here in real time. Server records all sales to SQLite permanently.
+                  </Typography>
+                </Box>
+              ) : (
+                <Stack sx={{ gap: 1, maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', pr: 0.5 }}>
+                  {events.map(ev => {
+                    const col = EVENT_COLOR[ev.eventType] ?? '#6366f1'
+                    return (
+                      <Card key={ev.id} variant="outlined" sx={{ borderColor: `${col}35`, bgcolor: `${col}08`, flexShrink: 0 }}>
+                        <CardContent sx={{ py: '10px !important', px: '14px !important' }}>
+                          <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Chip label={EVENT_LABEL[ev.eventType] ?? ev.eventType} size="small"
+                              sx={{ bgcolor: `${col}20`, color: col, fontWeight: 700, height: 20, fontSize: 10, letterSpacing: 0.3 }} />
+                            {ev.shop && (
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{fmtItem(ev.shop.item)}</Typography>
+                            )}
+                            {ev.playerName && (
+                              <Typography variant="caption" color="text.secondary">
+                                — <strong style={{ color: 'rgba(255,255,255,0.75)' }}>{ev.playerName}</strong>
+                              </Typography>
+                            )}
+                            {ev.shop && (
+                              <Typography variant="caption" color="#f59e0b" sx={{ fontWeight: 600 }}>{fmtGold(ev.shop.price)}</Typography>
+                            )}
+                            <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', fontFamily: 'monospace', fontSize: 11 }}>
+                              {fmtTime(ev.timestamp)}
+                            </Typography>
+                          </Stack>
+                          {ev.shop && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25, display: 'block', fontSize: 10, opacity: 0.6 }}>
+                              {ev.shop.amount}× · stock after: {ev.shop.stock.toLocaleString()}
+                            </Typography>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </Stack>
+              )}
+            </>
           )}
 
-          {events.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 8 }}>
-              <Typography color="text.secondary" sx={{ mb: 1 }}>Waiting for shop activity…</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.5 }}>
-                Sales, purchases, and stock alerts will appear here in real time.
-              </Typography>
+          {/* Sales history (SQLite) */}
+          {showHistory && (
+            <Box>
+              <Stack direction="row" sx={{ alignItems: 'center', gap: 1, mb: 1.5 }}>
+                <HistoryIcon sx={{ fontSize: 16, color: '#a5b4fc' }} />
+                <Typography variant="subtitle2" sx={{ color: '#a5b4fc', fontWeight: 700 }}>
+                  All-Time Sales History
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {salesTotal.toLocaleString()} total · showing latest 200
+                </Typography>
+                <Box sx={{ flex: 1 }} />
+                <Tooltip title="Refresh history">
+                  <IconButton size="small" onClick={fetchSaleHistory}>
+                    <RefreshIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+              {saleHistory.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 6 }}>
+                  <Typography color="text.secondary">No sales recorded yet.</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.5 }}>
+                    Sales are recorded automatically by the server when the API key is configured.
+                  </Typography>
+                </Box>
+              ) : (
+                <Stack sx={{ gap: 0.75, maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', pr: 0.5 }}>
+                  {saleHistory.map(row => {
+                    const col = row.event_type === 'ShopSoldItem' ? '#22c55e' : '#60a5fa'
+                    const label = row.event_type === 'ShopSoldItem' ? 'Sale' : 'Purchase'
+                    return (
+                      <Card key={row.id} variant="outlined" sx={{ borderColor: `${col}25`, bgcolor: `${col}06`, flexShrink: 0 }}>
+                        <CardContent sx={{ py: '8px !important', px: '14px !important' }}>
+                          <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Chip label={label} size="small"
+                              sx={{ bgcolor: `${col}20`, color: col, fontWeight: 700, height: 18, fontSize: 9, letterSpacing: 0.3 }} />
+                            {row.item && (
+                              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>{fmtItem(row.item)}</Typography>
+                            )}
+                            {row.player_name && (
+                              <Typography variant="caption" color="text.secondary">
+                                — <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{row.player_name}</strong>
+                              </Typography>
+                            )}
+                            {row.price != null && (
+                              <Typography variant="caption" color="#f59e0b" sx={{ fontWeight: 600 }}>{fmtGold(row.price)}</Typography>
+                            )}
+                            <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', fontFamily: 'monospace', fontSize: 10 }}>
+                              {fmtDate(row.recorded_at)}
+                            </Typography>
+                          </Stack>
+                          {row.amount != null && row.stock != null && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25, display: 'block', fontSize: 10, opacity: 0.55 }}>
+                              {row.amount}× · stock after: {row.stock.toLocaleString()}
+                            </Typography>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </Stack>
+              )}
             </Box>
-          ) : (
-            <Stack sx={{ gap: 1, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', pr: 0.5 }}>
-              {events.map(ev => {
-                const col = EVENT_COLOR[ev.eventType] ?? '#6366f1'
-                return (
-                  <Card key={ev.id} variant="outlined" sx={{ borderColor: `${col}35`, bgcolor: `${col}08`, flexShrink: 0 }}>
-                    <CardContent sx={{ py: '10px !important', px: '14px !important' }}>
-                      <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                        <Chip label={EVENT_LABEL[ev.eventType] ?? ev.eventType} size="small"
-                          sx={{ bgcolor: `${col}20`, color: col, fontWeight: 700, height: 20, fontSize: 10, letterSpacing: 0.3 }} />
-                        {ev.shop && (
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{fmtItem(ev.shop.item)}</Typography>
-                        )}
-                        {ev.playerName && (
-                          <Typography variant="caption" color="text.secondary">
-                            — <strong style={{ color: 'rgba(255,255,255,0.75)' }}>{ev.playerName}</strong>
-                          </Typography>
-                        )}
-                        {ev.shop && (
-                          <Typography variant="caption" color="#f59e0b" sx={{ fontWeight: 600 }}>{fmtGold(ev.shop.price)}</Typography>
-                        )}
-                        <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', fontFamily: 'monospace', fontSize: 11 }}>
-                          {fmtTime(ev.timestamp)}
-                        </Typography>
-                      </Stack>
-                      {ev.shop && (
-                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25, display: 'block', fontSize: 10, opacity: 0.6 }}>
-                          {ev.shop.amount}× · stock after: {ev.shop.stock.toLocaleString()}
-                        </Typography>
-                      )}
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </Stack>
           )}
         </Box>
       )}

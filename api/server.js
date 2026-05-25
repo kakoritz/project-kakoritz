@@ -2,6 +2,7 @@ const express = require('express')
 const cors = require('cors')
 const fs = require('fs')
 const path = require('path')
+const Database = require('better-sqlite3')
 
 const app = express()
 app.use(cors())
@@ -9,7 +10,56 @@ app.use(express.json())
 
 const ROOT       = process.env.PHOTOS_ROOT || '/photos'
 const TASKS_FILE = process.env.TASKS_FILE  || path.join(ROOT, 'kakoritz_tasks.json')
+const DATA_DIR   = process.env.DATA_DIR    || '/data'
 const IMAGE_EXTS = /\.(jpg|jpeg|png|gif|webp|bmp)$/i
+
+// ── SQLite sales DB ────────────────────────────────────────────────────────────
+let db = null
+try {
+  fs.mkdirSync(DATA_DIR, { recursive: true })
+  db = new Database(path.join(DATA_DIR, 'earthmc_sales.db'))
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS emc_sales (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      recorded_at  TEXT NOT NULL,
+      event_type   TEXT NOT NULL,
+      player_name  TEXT,
+      item         TEXT,
+      price        REAL,
+      amount       INTEGER,
+      shop_type    TEXT,
+      stock        INTEGER,
+      raw_json     TEXT NOT NULL
+    )
+  `)
+} catch (e) {
+  console.error('SQLite init failed:', e.message)
+}
+
+const stmtInsertSale = db ? db.prepare(
+  `INSERT INTO emc_sales (recorded_at, event_type, player_name, item, price, amount, shop_type, stock, raw_json)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+) : null
+
+function recordSale(eventType, payload) {
+  if (!stmtInsertSale) return
+  try {
+    const shop = payload.shop || (payload.item ? payload : null)
+    stmtInsertSale.run(
+      new Date().toISOString(),
+      eventType,
+      payload.buyer || payload.seller || null,
+      shop?.item || null,
+      shop?.price ?? null,
+      shop?.amount ?? null,
+      shop?.type || null,
+      shop?.stock ?? null,
+      JSON.stringify(payload)
+    )
+  } catch (e) {
+    console.error('recordSale error:', e.message)
+  }
+}
 
 // ── Task helpers ──────────────────────────────────────────────────────────────
 function readTasks() {
@@ -19,6 +69,7 @@ function writeTasks(tasks) {
   fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2))
 }
 
+// ── Photo categories ───────────────────────────────────────────────────────────
 const CATEGORIES = {
   jaxson:    { label: 'Jaxson',     emoji: '👦', folders: ['Jaxson'] },
   sophia:    { label: 'Sophia',     emoji: '👧', folders: ['Sophia', 'Sophia  Baby Photos'] },
@@ -46,19 +97,12 @@ function getCategoryImages(id) {
   const cat = CATEGORIES[id]
   if (!cat) return []
   let all = []
-  for (const folder of cat.folders) {
-    all = all.concat(getImages(path.join(ROOT, folder)))
-  }
+  for (const folder of cat.folders) all = all.concat(getImages(path.join(ROOT, folder)))
   return all
 }
 
-function randomItem(arr) {
-  return arr[Math.floor(Math.random() * arr.length)]
-}
-
-function toRelative(abs) {
-  return abs.replace(ROOT, '').replace(/^\//, '')
-}
+function randomItem(arr) { return arr[Math.floor(Math.random() * arr.length)] }
+function toRelative(abs) { return abs.replace(ROOT, '').replace(/^\//, '') }
 
 app.get('/api/categories', (req, res) => {
   const result = Object.entries(CATEGORIES).map(([id, cat]) => {
@@ -69,11 +113,7 @@ app.get('/api/categories', (req, res) => {
   res.json(result)
 })
 
-app.get('/api/category/:id', (req, res) => {
-  const images = getCategoryImages(req.params.id)
-  res.json(images.map(toRelative))
-})
-
+app.get('/api/category/:id', (req, res) => res.json(getCategoryImages(req.params.id).map(toRelative)))
 app.get('/api/photos', (req, res) => {
   let all = []
   for (const id of Object.keys(CATEGORIES)) all = all.concat(getCategoryImages(id))
@@ -112,12 +152,9 @@ app.delete('/api/tasks/:id', (req, res) => {
 })
 
 // ── EarthMC proxies ───────────────────────────────────────────────────────────
-// Browser can't hit api.earthmc.net directly with auth headers (CORS preflight
-// returns 404, not 2xx). Proxy server-to-server instead.
-
-async function emcProxy(path, body, res) {
+async function emcProxy(urlPath, body, res) {
   try {
-    const r = await fetch(`https://api.earthmc.net/v4${path}`, {
+    const r = await fetch(`https://api.earthmc.net/v4${urlPath}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -136,7 +173,7 @@ app.post('/api/earthmc/nations', (req, res) => emcProxy('/nations', req.body, re
 app.post('/api/earthmc/towns',   (req, res) => emcProxy('/towns',   req.body, res))
 
 // Shop cache: avoid hammering EarthMC's rate-limited endpoint
-const SHOP_CACHE_TTL = 5 * 60 * 1000  // serve cached data for 5 minutes
+const SHOP_CACHE_TTL = 5 * 60 * 1000
 let shopCache = { data: null, ts: 0, retryAfter: 0 }
 
 app.post('/api/earthmc/shop', async (req, res) => {
@@ -145,22 +182,18 @@ app.post('/api/earthmc/shop', async (req, res) => {
 
   const now = Date.now()
 
-  // Still inside a rate-limit cooldown — return cached data if we have it, else 429
   if (shopCache.retryAfter > now) {
     const waitSec = Math.ceil((shopCache.retryAfter - now) / 1000)
-    if (shopCache.data) {
-      return res.json({ _cached: true, _cachedAt: shopCache.ts, _retryAfter: waitSec, shops: shopCache.data })
-    }
+    if (shopCache.data) return res.json({ _cached: true, _cachedAt: shopCache.ts, _retryAfter: waitSec, shops: shopCache.data })
     return res.status(429).json({ error: `Too Many Requests. Try again in ${waitSec} seconds`, retryAfter: waitSec })
   }
 
-  // Cache is still fresh — skip the upstream call entirely
   if (shopCache.data && (now - shopCache.ts) < SHOP_CACHE_TTL) {
     return res.json({ _cached: true, _cachedAt: shopCache.ts, shops: shopCache.data })
   }
 
   try {
-    // EarthMC shop auth: key goes in POST body only — no Authorization header
+    // EarthMC shop auth: key in POST body only — NOT Authorization header
     const r = await fetch('https://api.earthmc.net/v4/shop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -171,18 +204,14 @@ app.post('/api/earthmc/shop', async (req, res) => {
     try { data = JSON.parse(text) } catch { data = { error: text } }
 
     if (r.status === 429) {
-      const retryAfterHeader = r.headers.get('Retry-After')
-      const waitSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 3600
+      const waitSec = parseInt(r.headers.get('Retry-After') || '3600', 10)
       shopCache.retryAfter = now + waitSec * 1000
-      if (shopCache.data) {
-        return res.json({ _cached: true, _cachedAt: shopCache.ts, _retryAfter: waitSec, shops: shopCache.data })
-      }
+      if (shopCache.data) return res.json({ _cached: true, _cachedAt: shopCache.ts, _retryAfter: waitSec, shops: shopCache.data })
       return res.status(429).json({ error: `Too Many Requests. Try again in ${waitSec} seconds`, retryAfter: waitSec })
     }
 
     if (r.ok) {
-      // Response format: [{ "1": shopObj, "2": shopObj, ... }]
-      // Flatten the dictionary wrapper into a plain array of shop objects
+      // Response: [{ "1": shopObj, "2": shopObj }] — flatten to array
       let shops = []
       if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
         shops = Object.values(data[0])
@@ -199,6 +228,41 @@ app.post('/api/earthmc/shop', async (req, res) => {
   }
 })
 
+// ── EarthMC sales history (SQLite) ────────────────────────────────────────────
+app.get('/api/earthmc/sales', (req, res) => {
+  if (!db) return res.status(503).json({ error: 'Sales DB not available' })
+  const limit  = Math.min(parseInt(req.query.limit)  || 200, 2000)
+  const offset = parseInt(req.query.offset) || 0
+  const rows = db.prepare(
+    'SELECT * FROM emc_sales ORDER BY id DESC LIMIT ? OFFSET ?'
+  ).all(limit, offset)
+  const total = db.prepare('SELECT COUNT(*) AS n FROM emc_sales').get()?.n ?? 0
+  res.json({ total, rows })
+})
+
+// Browser can POST an event it received via SSE (backup persistence)
+app.post('/api/earthmc/sales', (req, res) => {
+  if (!stmtInsertSale) return res.status(503).json({ error: 'Sales DB not available' })
+  try {
+    const { event_type, player_name, item, price, amount, shop_type, stock } = req.body
+    stmtInsertSale.run(
+      new Date().toISOString(),
+      event_type || 'unknown',
+      player_name || null,
+      item || null,
+      price ?? null,
+      amount ?? null,
+      shop_type || null,
+      stock ?? null,
+      JSON.stringify(req.body)
+    )
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── EarthMC SSE proxy (browser live feed) ─────────────────────────────────────
 app.get('/api/earthmc/events', async (req, res) => {
   const key = process.env.EARTHMC_API_KEY || ''
   if (!key) return res.status(503).json({ error: 'EARTHMC_API_KEY not configured on server' })
@@ -230,6 +294,64 @@ app.get('/api/earthmc/events', async (req, res) => {
   res.end()
 })
 
-app.get('/health', (_, res) => res.json({ status: 'ok', root: ROOT }))
+// ── Server-side persistent SSE sales recorder ─────────────────────────────────
+// Runs independently of any browser connection — records all sales to SQLite
+// even when no one has the dashboard open.
+const RECORD_EVENTS = 'ShopSoldItem,ShopBoughtItem,ShopOutOfStock,ShopOutOfSpace,ShopOutOfGold'
 
-app.listen(3001, () => console.log(`Photo API — root: ${ROOT}`))
+function startSalesRecorder() {
+  const key = process.env.EARTHMC_API_KEY || ''
+  if (!key || !db) return
+
+  async function connect() {
+    try {
+      const r = await fetch(`https://api.earthmc.net/v4/events?listen=${RECORD_EVENTS}`, {
+        headers: { Authorization: `Bearer ${key}` },
+      })
+      if (!r.ok || !r.body) {
+        console.log(`[recorder] EarthMC events returned ${r.status}, retrying in 60s`)
+        return setTimeout(connect, 60_000)
+      }
+      console.log('[recorder] Connected to EarthMC event stream')
+      const reader = r.body.getReader()
+      const dec = new TextDecoder()
+      let buf = ''
+      let eventType = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() || ''
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7).trim()
+          } else if (line.startsWith('data: ') && eventType) {
+            try {
+              const payload = JSON.parse(line.slice(6))
+              if (['ShopSoldItem', 'ShopBoughtItem'].includes(eventType)) {
+                recordSale(eventType, payload)
+              }
+            } catch { }
+            eventType = ''
+          }
+        }
+      }
+    } catch (e) {
+      console.log('[recorder] Disconnected:', e.message)
+    }
+    // Reconnect after any error or stream end
+    setTimeout(connect, 5_000)
+  }
+
+  connect()
+}
+
+app.get('/health', (_, res) => res.json({ status: 'ok', root: ROOT, salesDb: !!db }))
+
+app.listen(3001, () => {
+  console.log(`Dashboard API — root: ${ROOT}`)
+  // Start SSE sales recorder after server is up
+  setTimeout(startSalesRecorder, 2_000)
+})
