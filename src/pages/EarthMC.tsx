@@ -25,7 +25,7 @@ const PLAYER_NAME = import.meta.env.VITE_EARTHMC_PLAYER   ?? 'kakoritz'
 const NATION_NAME = import.meta.env.VITE_EARTHMC_NATION   ?? 'Narmada'
 const API_BASE    = 'https://api.earthmc.net/v4'
 const NAS_API   = 'http://192.168.1.251:8586'
-const SHOP_POLL   = 30_000
+const SHOP_POLL   = 5 * 60_000  // 5 min — matches server cache TTL
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Shop {
@@ -147,6 +147,8 @@ export default function EarthMC() {
   const [events, setEvents]                 = useState<LiveEvent[]>([])
   const [loading, setLoading]               = useState(true)
   const [shopError, setShopError]           = useState<string | null>(null)
+  const [shopRetryAt, setShopRetryAt]       = useState<number | null>(null)
+  const [shopCachedAt, setShopCachedAt]     = useState<number | null>(null)
   const [sseConnected, setSseConnected]     = useState(false)
   const [search, setSearch]                 = useState('')
   const [uuid, setUuid]                     = useState('')
@@ -187,12 +189,22 @@ export default function EarthMC() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: [playerUUID] }),
       })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(body.error ?? `Shop API returned ${res.status}`)
+      const body = await res.json().catch(() => ({})) as {
+        shops?: Shop[]; error?: string; retryAfter?: number; _cached?: boolean; _cachedAt?: number; _retryAfter?: number
       }
-      const data = await res.json()
-      setShops(Array.isArray(data) ? data as Shop[] : [])
+
+      if (res.status === 429) {
+        const waitSec = body.retryAfter ?? 3600
+        setShopRetryAt(Date.now() + waitSec * 1000)
+        throw new Error(`Rate limited — retry in ${Math.ceil(waitSec / 60)} min`)
+      }
+      if (!res.ok) throw new Error(body.error ?? `Shop API ${res.status}`)
+
+      setShopCachedAt(body._cachedAt ?? Date.now())
+      if (body._retryAfter) setShopRetryAt(Date.now() + body._retryAfter * 1000)
+      else setShopRetryAt(null)
+
+      setShops(Array.isArray(body.shops) ? body.shops : [])
     } catch (e) {
       setShopError((e as Error).message)
     }
@@ -455,6 +467,19 @@ export default function EarthMC() {
               <CircularProgress size={14} />
               <Typography variant="caption" color="text.secondary">Loading shops…</Typography>
             </Stack>
+          )}
+
+          {shopRetryAt && shopRetryAt > Date.now() && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              EarthMC shop API is rate-limited — showing cached data.{' '}
+              Next live refresh available in <strong>{Math.ceil((shopRetryAt - Date.now()) / 60000)} min</strong>.
+            </Alert>
+          )}
+
+          {shopCachedAt && !loading && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, opacity: 0.6 }}>
+              Data from {Math.round((Date.now() - shopCachedAt) / 60000)} min ago · refreshes every 5 min
+            </Typography>
           )}
 
           {shopError && (

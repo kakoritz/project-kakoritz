@@ -135,9 +135,30 @@ app.post('/api/earthmc/players', (req, res) => emcProxy('/players', req.body, re
 app.post('/api/earthmc/nations', (req, res) => emcProxy('/nations', req.body, res))
 app.post('/api/earthmc/towns',   (req, res) => emcProxy('/towns',   req.body, res))
 
+// Shop cache: avoid hammering EarthMC's rate-limited endpoint
+const SHOP_CACHE_TTL = 5 * 60 * 1000  // serve cached data for 5 minutes
+let shopCache = { data: null, ts: 0, retryAfter: 0 }
+
 app.post('/api/earthmc/shop', async (req, res) => {
   const key = process.env.EARTHMC_API_KEY || ''
   if (!key) return res.status(503).json({ error: 'EARTHMC_API_KEY not configured on server' })
+
+  const now = Date.now()
+
+  // Still inside a rate-limit cooldown — return cached data if we have it, else 429
+  if (shopCache.retryAfter > now) {
+    const waitSec = Math.ceil((shopCache.retryAfter - now) / 1000)
+    if (shopCache.data) {
+      return res.json({ _cached: true, _cachedAt: shopCache.ts, _retryAfter: waitSec, shops: shopCache.data })
+    }
+    return res.status(429).json({ error: `Too Many Requests. Try again in ${waitSec} seconds`, retryAfter: waitSec })
+  }
+
+  // Cache is still fresh — skip the upstream call entirely
+  if (shopCache.data && (now - shopCache.ts) < SHOP_CACHE_TTL) {
+    return res.json({ _cached: true, _cachedAt: shopCache.ts, shops: shopCache.data })
+  }
+
   try {
     const r = await fetch('https://api.earthmc.net/v4/shop', {
       method: 'POST',
@@ -147,6 +168,22 @@ app.post('/api/earthmc/shop', async (req, res) => {
     const text = await r.text()
     let data
     try { data = JSON.parse(text) } catch { data = { error: text } }
+
+    if (r.status === 429) {
+      const retryAfterHeader = r.headers.get('Retry-After')
+      const waitSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 3600
+      shopCache.retryAfter = now + waitSec * 1000
+      if (shopCache.data) {
+        return res.json({ _cached: true, _cachedAt: shopCache.ts, _retryAfter: waitSec, shops: shopCache.data })
+      }
+      return res.status(429).json({ error: `Too Many Requests. Try again in ${waitSec} seconds`, retryAfter: waitSec })
+    }
+
+    if (r.ok && Array.isArray(data)) {
+      shopCache = { data, ts: now, retryAfter: 0 }
+      return res.json({ shops: data })
+    }
+
     res.status(r.status).json(data)
   } catch (e) {
     res.status(502).json({ error: e.message })
