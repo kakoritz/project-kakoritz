@@ -34,7 +34,7 @@ interface Shop {
   amount: number
   type: 'selling' | 'buying'
   stock: number
-  location: { x: number; y: number; z: number }
+  location?: { x: number; y: number; z: number }
 }
 
 interface NationInfo {
@@ -308,8 +308,8 @@ export default function EarthMC() {
                 if (shop) {
                   setShops(prev => prev.map(s =>
                     s.item === shop.item &&
-                    s.location.x === shop.location.x &&
-                    s.location.z === shop.location.z
+                    s.location?.x === shop.location?.x &&
+                    s.location?.z === shop.location?.z
                       ? { ...s, stock: shop.stock }
                       : s
                   ))
@@ -568,10 +568,12 @@ export default function EarthMC() {
                                 </Typography>
                               )}
 
-                              <Typography variant="caption" color="text.secondary"
-                                sx={{ fontSize: 9, display: 'block', mt: 0.5, opacity: 0.45, fontFamily: 'monospace' }}>
-                                {shop.location.x} {shop.location.y} {shop.location.z}
-                              </Typography>
+                              {shop.location && (
+                                <Typography variant="caption" color="text.secondary"
+                                  sx={{ fontSize: 9, display: 'block', mt: 0.5, opacity: 0.45, fontFamily: 'monospace' }}>
+                                  {shop.location.x} {shop.location.y} {shop.location.z}
+                                </Typography>
+                              )}
                             </CardContent>
                           </Card>
                         </Grid>

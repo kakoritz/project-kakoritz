@@ -160,10 +160,11 @@ app.post('/api/earthmc/shop', async (req, res) => {
   }
 
   try {
+    // EarthMC shop auth: key goes in POST body only — no Authorization header
     const r = await fetch('https://api.earthmc.net/v4/shop', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ ...req.body, key }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: req.body.query, key }),
     })
     const text = await r.text()
     let data
@@ -179,9 +180,17 @@ app.post('/api/earthmc/shop', async (req, res) => {
       return res.status(429).json({ error: `Too Many Requests. Try again in ${waitSec} seconds`, retryAfter: waitSec })
     }
 
-    if (r.ok && Array.isArray(data)) {
-      shopCache = { data, ts: now, retryAfter: 0 }
-      return res.json({ shops: data })
+    if (r.ok) {
+      // Response format: [{ "1": shopObj, "2": shopObj, ... }]
+      // Flatten the dictionary wrapper into a plain array of shop objects
+      let shops = []
+      if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
+        shops = Object.values(data[0])
+      } else if (Array.isArray(data)) {
+        shops = data
+      }
+      shopCache = { data: shops, ts: now, retryAfter: 0 }
+      return res.json({ shops })
     }
 
     res.status(r.status).json(data)
