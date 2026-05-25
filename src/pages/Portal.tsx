@@ -17,6 +17,7 @@ import PlayCircleIcon from '@mui/icons-material/PlayCircle'
 import MovieIcon from '@mui/icons-material/Movie'
 import LiveTvIcon from '@mui/icons-material/LiveTv'
 import AutoStoriesIcon from '@mui/icons-material/AutoStories'
+import VpnLockIcon from '@mui/icons-material/VpnLock'
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ const APPS = [
   { name: 'Containers',      desc: 'Docker',        url: 'http://192.168.1.251:5000',                             icon: <Inventory2Icon />, color: '#38bdf8' },
   { name: 'Actions',         desc: 'GitHub CI',     url: 'https://github.com/kakoritz/project-kakoritz/actions', icon: <CodeIcon />,       color: '#a78bfa' },
   { name: 'Router',          desc: 'Network',       url: 'http://192.168.1.1',                                    icon: <RouterIcon />,     color: '#f59e0b' },
+  { name: 'VPN',             desc: 'Coming soon',   url: null,                                                    icon: <VpnLockIcon />,    color: '#64748b' },
 ]
 
 const STREAMING = [
@@ -176,7 +178,7 @@ export default function Portal() {
           <Grid size={{ xs: 4, sm: 3, md: 2 }} key={app.name}>
             <IconCard
               name={app.name} desc={app.desc} color={app.color} icon={app.icon}
-              onClick={() => window.open(app.url, '_blank')}
+              onClick={() => app.url ? window.open(app.url, '_blank') : undefined}
             />
           </Grid>
         ))}
