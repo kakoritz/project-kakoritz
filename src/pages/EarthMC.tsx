@@ -3,7 +3,7 @@ import {
   Alert, Box, Card, CardContent, Chip, CircularProgress,
   Dialog, DialogContent, DialogTitle,
   Divider, Grid, IconButton, InputAdornment,
-  Stack, Tab, Tabs, TextField, Tooltip, Typography,
+  Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography,
 } from '@mui/material'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import SearchIcon from '@mui/icons-material/Search'
@@ -28,7 +28,7 @@ const PLAYER_NAME = import.meta.env.VITE_EARTHMC_PLAYER   ?? 'kakoritz'
 const NATION_NAME = import.meta.env.VITE_EARTHMC_NATION   ?? 'Narmada'
 const API_BASE    = 'https://api.earthmc.net/v4'
 const NAS_API   = 'http://192.168.1.251:8586'
-const SHOP_POLL   = 5 * 60_000  // 5 min — matches server cache TTL
+const SHOP_CACHE_TTL = 5 * 60_000  // matches server-side cache TTL
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Shop {
@@ -183,15 +183,19 @@ export default function EarthMC() {
   const sseAbort        = useRef<AbortController | null>(null)
   const townsFetchedRef = useRef(false)
 
-  const [onlineOpen, setOnlineOpen]     = useState(false)
-  const [discordOpen, setDiscordOpen]   = useState(false)
-  const [mcOpen, setMcOpen]             = useState(false)
-  const [onlineSearch, setOnlineSearch] = useState('')
-  const [ssePaused, setSsePaused]       = useState(false)
-  const [saleHistory, setSaleHistory]   = useState<SaleRecord[]>([])
-  const [salesTotal, setSalesTotal]     = useState(0)
-  const [showHistory, setShowHistory]   = useState(false)
-  const ssePausedRef = useRef(false)
+  const [onlineOpen, setOnlineOpen]         = useState(false)
+  const [discordOpen, setDiscordOpen]       = useState(false)
+  const [mcOpen, setMcOpen]                 = useState(false)
+  const [onlineSearch, setOnlineSearch]     = useState('')
+  const [ssePaused, setSsePaused]           = useState(true)   // live feed off by default
+  const [saleHistory, setSaleHistory]       = useState<SaleRecord[]>([])
+  const [salesTotal, setSalesTotal]         = useState(0)
+  const [showHistory, setShowHistory]       = useState(false)
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false)
+  const [shopStatus, setShopStatus]         = useState<'limited' | 'cached' | 'ready'>('cached')
+  const [countdown, setCountdown]           = useState('')
+  const ssePausedRef      = useRef(false)
+  const lastAutoRefreshRef = useRef(0)
 
   // ── API calls ───────────────────────────────────────────────────────────────
   const getUUID = useCallback(async (): Promise<string> => {
@@ -410,11 +414,7 @@ export default function EarthMC() {
 
   useEffect(() => { loadAll() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!uuid) return
-    const id = setInterval(() => { fetchShops(uuid).catch(() => {}) }, SHOP_POLL)
-    return () => clearInterval(id)
-  }, [uuid, fetchShops])
+  // No auto-polling — manual refresh only. Rate-limited APIs should never poll blindly.
 
   // Refresh sale history every 2 min
   useEffect(() => {
@@ -422,10 +422,43 @@ export default function EarthMC() {
     return () => clearInterval(id)
   }, [fetchSaleHistory])
 
+  // SSE starts paused (off by default)
   useEffect(() => {
-    connectSSE()
+    ssePausedRef.current = true  // ensure ref matches default state
+    // do NOT auto-connect
     return () => sseAbort.current?.abort()
-  }, [connectSSE])
+  }, [])
+
+  // ── Shop countdown timer + auto-refresh ─────────────────────────────────────
+  useEffect(() => {
+    const tick = () => {
+      const now = Date.now()
+
+      if (shopRetryAt && shopRetryAt > now) {
+        // Rate-limited: count down to when limit expires
+        const sec = Math.ceil((shopRetryAt - now) / 1000)
+        setCountdown(`${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`)
+        setShopStatus('limited')
+      } else if (shopCachedAt && (now - shopCachedAt) < SHOP_CACHE_TTL) {
+        // Cache still fresh: count down to expiry
+        const sec = Math.ceil((SHOP_CACHE_TTL - (now - shopCachedAt)) / 1000)
+        setCountdown(`${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`)
+        setShopStatus('cached')
+      } else {
+        // Available for refresh
+        setCountdown('')
+        setShopStatus('ready')
+        if (autoRefreshEnabled && uuid && !loading && now - lastAutoRefreshRef.current > 60_000) {
+          lastAutoRefreshRef.current = now
+          fetchShops(uuid).catch(() => {})
+        }
+      }
+    }
+
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [shopRetryAt, shopCachedAt, autoRefreshEnabled, uuid, loading, fetchShops])
 
   // Reset towns when nation reloads; auto-fetch when Nation tab opens
   useEffect(() => { townsFetchedRef.current = false; setTowns([]) }, [nation])
@@ -504,9 +537,11 @@ export default function EarthMC() {
               }}
             />
           </Tooltip>
-          <IconButton size="small" onClick={() => loadAll(uuid || undefined)} disabled={loading}>
-            <RefreshIcon sx={{ fontSize: 18 }} />
-          </IconButton>
+          <Tooltip title="Refresh all">
+            <IconButton size="small" onClick={() => loadAll(uuid || undefined)} disabled={loading}>
+              <RefreshIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
         </Stack>
       </Stack>
 
@@ -536,25 +571,62 @@ export default function EarthMC() {
       {/* ══ TAB 0 — SHOPS ══════════════════════════════════════════════════════ */}
       {tab === 0 && (
         <Box>
-          {loading && (
-            <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mb: 2 }}>
-              <CircularProgress size={14} />
-              <Typography variant="caption" color="text.secondary">Loading shops…</Typography>
+          {/* ── Shop status bar ──────────────────────────────────────────── */}
+          <Stack direction="row" sx={{ alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
+            {/* Traffic-light status dot + label + countdown */}
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+              <Box sx={{
+                width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                bgcolor:
+                  shopStatus === 'ready'   ? '#22c55e' :
+                  shopStatus === 'cached'  ? '#f59e0b' : '#ef4444',
+                boxShadow:
+                  shopStatus === 'ready'  ? '0 0 8px #22c55e99' :
+                  shopStatus === 'limited' ? '0 0 6px #ef444499' : 'none',
+                '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.35 } },
+                animation: shopStatus === 'ready' ? 'pulse 2s ease-in-out infinite' : 'none',
+              }} />
+              <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: 11.5, color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                {shopStatus === 'limited' && <>Rate limited&nbsp;·&nbsp;</>}
+                {shopStatus === 'cached'  && <>Cached&nbsp;·&nbsp;</>}
+                {shopStatus === 'ready'   && <span style={{ color: '#22c55e', fontWeight: 700 }}>Ready</span>}
+                {countdown && (
+                  <span style={{ color: shopStatus === 'limited' ? '#ef4444' : '#f59e0b', fontWeight: 700 }}>
+                    {shopStatus === 'limited' ? 'Ready in ' : 'Expires in '}{countdown}
+                  </span>
+                )}
+              </Typography>
             </Stack>
-          )}
 
-          {shopRetryAt && shopRetryAt > Date.now() && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              EarthMC shop API is rate-limited — showing cached data.{' '}
-              Next live refresh available in <strong>{Math.ceil((shopRetryAt - Date.now()) / 60000)} min</strong>.
-            </Alert>
-          )}
+            {/* Auto-refresh toggle */}
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+              <Switch
+                size="small"
+                checked={autoRefreshEnabled}
+                onChange={e => setAutoRefreshEnabled(e.target.checked)}
+                sx={{ '& .MuiSwitch-track': { bgcolor: autoRefreshEnabled ? '#6366f1 !important' : undefined } }}
+              />
+              <Typography variant="caption" color={autoRefreshEnabled ? 'primary.light' : 'text.secondary'} sx={{ fontSize: 11 }}>
+                Auto-refresh {autoRefreshEnabled ? 'on' : 'off'}
+              </Typography>
+            </Stack>
 
-          {shopCachedAt && !loading && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, opacity: 0.6 }}>
-              Data from {Math.round((Date.now() - shopCachedAt) / 60000)} min ago · refreshes every 5 min
-            </Typography>
-          )}
+            {/* Manual refresh */}
+            <Tooltip title="Refresh now">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={() => uuid && fetchShops(uuid)}
+                  disabled={loading || shopStatus === 'limited'}
+                  sx={{ ml: 'auto' }}
+                >
+                  {loading
+                    ? <CircularProgress size={14} />
+                    : <RefreshIcon sx={{ fontSize: 16 }} />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
 
           {shopError && (
             <Alert severity="error" sx={{ mb: 2 }}>

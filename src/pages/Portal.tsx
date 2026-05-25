@@ -18,6 +18,8 @@ import MovieIcon from '@mui/icons-material/Movie'
 import LiveTvIcon from '@mui/icons-material/LiveTv'
 import AutoStoriesIcon from '@mui/icons-material/AutoStories'
 import VpnLockIcon from '@mui/icons-material/VpnLock'
+import TelegramIcon from '@mui/icons-material/Telegram'
+import ShoppingBagIcon from '@mui/icons-material/ShoppingBag'
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -219,6 +221,29 @@ export default function Portal() {
             name="Email" desc="4 accounts" color="#fb923c"
             icon={<EmailIcon />} badge={EMAIL_ACCOUNTS.length}
             onClick={() => setEmailOpen(true)}
+          />
+        </Grid>
+
+        {/* ── Integrations ── */}
+        <Grid size={12}>
+          <Typography variant="overline" color="text.disabled" sx={{ letterSpacing: 1.5, fontSize: 11, mt: 0.5, display: 'block' }}>
+            Integrations
+          </Typography>
+        </Grid>
+
+        <Grid size={{ xs: 4, sm: 3, md: 2 }}>
+          <IconCard
+            name="Telegram" desc="Coming soon" color="#64748b"
+            icon={<TelegramIcon />}
+            onClick={() => {}}
+          />
+        </Grid>
+
+        <Grid size={{ xs: 4, sm: 3, md: 2 }}>
+          <IconCard
+            name="Etsy" desc="Coming soon" color="#64748b"
+            icon={<ShoppingBagIcon />}
+            onClick={() => {}}
           />
         </Grid>
 
