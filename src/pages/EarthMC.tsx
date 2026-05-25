@@ -15,6 +15,9 @@ import SecurityIcon from '@mui/icons-material/Security'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import LaunchIcon from '@mui/icons-material/Launch'
 import CloseIcon from '@mui/icons-material/Close'
+import ForumIcon from '@mui/icons-material/Forum'
+import SportsEsportsIcon from '@mui/icons-material/SportsEsports'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const API_KEY     = import.meta.env.VITE_EARTHMC_API_KEY  ?? ''
@@ -123,6 +126,18 @@ const SSE_EVENTS = 'ShopSoldItem,ShopBoughtItem,ShopOutOfStock,ShopOutOfSpace,Sh
 const mapUrl = (x: number, z: number) =>
   `https://map.earthmc.net/?world=minecraft_overworld&zoom=5&x=${Math.round(x)}&z=${Math.round(z)}`
 
+const DISCORD_LINKS = [
+  { label: 'Narmada',     url: 'https://discord.gg/9NYt38c4',   desc: 'Nation community' },
+  { label: 'EarthMC',     url: 'https://discord.gg/earthmcnet', desc: 'Official server' },
+  { label: 'EMC Support', url: 'https://discord.gg/jQH5Wzbh',   desc: 'Support & help' },
+]
+
+const MC_SERVERS = [
+  { label: 'EarthMC (Premium)', address: 'argo.earthmc.net' },
+  { label: 'EarthMC (Free)',    address: 'play.earthmc.net' },
+  { label: 'Narmada Build',     address: 'narmada-mc.serveminecraft.net:25565' },
+]
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function EarthMC() {
   const [tab, setTab]                       = useState(0)
@@ -144,6 +159,11 @@ export default function EarthMC() {
 
   const sseAbort        = useRef<AbortController | null>(null)
   const townsFetchedRef = useRef(false)
+
+  const [onlineOpen, setOnlineOpen]     = useState(false)
+  const [discordOpen, setDiscordOpen]   = useState(false)
+  const [mcOpen, setMcOpen]             = useState(false)
+  const [onlineSearch, setOnlineSearch] = useState('')
 
   // ── API calls ───────────────────────────────────────────────────────────────
   const getUUID = useCallback(async (): Promise<string> => {
@@ -364,12 +384,27 @@ export default function EarthMC() {
         </Box>
 
         <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Chip
-            icon={<PeopleIcon sx={{ fontSize: '14px !important' }} />}
-            label={`${online.length} online`}
-            size="small"
-            sx={{ bgcolor: 'rgba(99,102,241,0.15)', color: '#a5b4fc' }}
-          />
+          <Tooltip title="See who's online">
+            <Chip
+              icon={<PeopleIcon sx={{ fontSize: '14px !important' }} />}
+              label={`${online.length} online`}
+              size="small"
+              onClick={() => setOnlineOpen(true)}
+              sx={{ bgcolor: 'rgba(99,102,241,0.15)', color: '#a5b4fc', cursor: 'pointer' }}
+            />
+          </Tooltip>
+          <Tooltip title="Discord servers">
+            <IconButton size="small" onClick={() => setDiscordOpen(true)}
+              sx={{ bgcolor: 'rgba(88,101,242,0.15)', '&:hover': { bgcolor: 'rgba(88,101,242,0.28)' } }}>
+              <ForumIcon sx={{ fontSize: 16, color: '#5865F2' }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Minecraft servers">
+            <IconButton size="small" onClick={() => setMcOpen(true)}
+              sx={{ bgcolor: 'rgba(34,197,94,0.12)', '&:hover': { bgcolor: 'rgba(34,197,94,0.22)' } }}>
+              <SportsEsportsIcon sx={{ fontSize: 16, color: '#22c55e' }} />
+            </IconButton>
+          </Tooltip>
           <Tooltip title={sseConnected ? 'Live feed connected' : 'Reconnecting…'}>
             <Chip
               icon={sseConnected
@@ -590,7 +625,12 @@ export default function EarthMC() {
 
       {/* ══ TAB 2 — NATION ═════════════════════════════════════════════════════ */}
       {tab === 2 && (
-        <Box>
+        <Box sx={{
+          backgroundImage: 'linear-gradient(180deg, rgba(255,153,51,0.06) 0%, rgba(255,153,51,0.06) 33%, rgba(255,255,255,0.015) 33%, rgba(255,255,255,0.015) 66%, rgba(19,136,8,0.06) 66%, rgba(19,136,8,0.06) 100%)',
+          borderRadius: 2,
+          p: 1.5,
+          mx: -1.5,
+        }}>
           {loading && !nation && (
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mb: 2 }}>
               <CircularProgress size={14} />
@@ -607,7 +647,7 @@ export default function EarthMC() {
                   { label: 'Capital',     value: nation.capital?.name ?? '—' },
                   { label: 'Balance',     value: fmtGold(nation.stats?.balance ?? 0), gold: true },
                   { label: 'Residents',   value: String(nation.residents.length) },
-                  { label: 'Town Blocks', value: nation.stats?.numTownBlocks?.toLocaleString() ?? '—' },
+                  { label: 'Town Chunks', value: nation.stats?.numTownBlocks?.toLocaleString() ?? '—' },
                   { label: 'Online',      value: String(online.filter(n => nation.residents.some(r => r.name === n)).length) },
                 ] as { label: string; value: string; gold?: boolean }[]).map(({ label, value, gold }) => (
                   <Card key={label} variant="outlined" sx={{ textAlign: 'center', py: 1.5, px: 1 }}>
@@ -616,6 +656,28 @@ export default function EarthMC() {
                   </Card>
                 ))}
               </Box>
+
+              {/* ── Online Narmada Members ──────────────────────────────────── */}
+              {nation.residents.filter(r => online.includes(r.name)).length > 0 && (
+                <Box sx={{ mb: 2.5 }}>
+                  <Typography variant="overline" sx={{ color: '#22c55e', letterSpacing: 2, fontWeight: 700, display: 'block', mb: 1 }}>
+                    🟢 Online Members ({nation.residents.filter(r => online.includes(r.name)).length})
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    {nation.residents.filter(r => online.includes(r.name)).map(r => (
+                      <Chip key={r.name} label={r.name} size="small" clickable
+                        onClick={() => fetchPlayer(r.name)}
+                        sx={{
+                          height: 24, fontSize: 11,
+                          bgcolor: 'rgba(34,197,94,0.14)', color: '#22c55e',
+                          border: '1px solid rgba(34,197,94,0.3)', fontWeight: 700,
+                          '&:hover': { bgcolor: 'rgba(99,102,241,0.2)', color: '#a5b4fc' },
+                        }}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
 
               {/* ── Town cards ─────────────────────────────────────────────── */}
               <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700, display: 'block', mb: 1.5 }}>
@@ -703,7 +765,7 @@ export default function EarthMC() {
                   <Stack sx={{ gap: 1, mb: 2 }}>
                     <StatRow label="Mayor"       value={selectedTown.mayor?.name ?? '—'} />
                     <StatRow label="Balance"     value={fmtGold(selectedTown.stats?.balance ?? 0)} gold />
-                    <StatRow label="Town Blocks" value={`${selectedTown.stats?.numTownBlocks ?? 0} / ${selectedTown.stats?.maxTownBlocks ?? 0}`} />
+                    <StatRow label="Town Chunks" value={`${selectedTown.stats?.numTownBlocks ?? 0} / ${selectedTown.stats?.maxTownBlocks ?? 0}`} />
                     <StatRow label="Residents"   value={String(selectedTown.residents?.length ?? 0)} />
                   </Stack>
 
@@ -761,55 +823,186 @@ export default function EarthMC() {
             )}
           </Dialog>
 
-          {/* ── Player detail dialog ────────────────────────────────────────── */}
-          <Dialog open={playerDialogOpen} onClose={() => { setPlayerDialogOpen(false); setSelectedPlayer(null) }} maxWidth="xs" fullWidth>
-            <DialogTitle sx={{ pb: 1 }}>
-              <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                  {playerLoading ? 'Looking up player…' : (selectedPlayer?.name ?? '')}
-                </Typography>
-                <IconButton size="small" onClick={() => { setPlayerDialogOpen(false); setSelectedPlayer(null) }}>
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              </Stack>
-            </DialogTitle>
-            <DialogContent>
-              {playerLoading ? (
-                <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', py: 3, justifyContent: 'center' }}>
-                  <CircularProgress size={20} />
-                </Stack>
-              ) : selectedPlayer && (
-                <Stack sx={{ gap: 1 }}>
-                  <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
-                    {selectedPlayer.status?.isOnline && (
-                      <Chip label="Online" size="small" sx={{ height: 20, bgcolor: 'rgba(34,197,94,0.14)', color: '#22c55e' }} />
-                    )}
-                    {selectedPlayer.ranks?.townRanks?.map(r => (
-                      <Chip key={r} label={r} size="small" sx={{ height: 20, bgcolor: 'rgba(99,102,241,0.12)', color: '#a5b4fc' }} />
-                    ))}
-                    {selectedPlayer.ranks?.nationRanks?.map(r => (
-                      <Chip key={r} label={`${r} (nation)`} size="small" sx={{ height: 20, bgcolor: 'rgba(245,158,11,0.12)', color: '#f59e0b' }} />
-                    ))}
-                  </Stack>
-                  {selectedPlayer.title  && <StatRow label="Title"   value={selectedPlayer.title} />}
-                  {selectedPlayer.town   && <StatRow label="Town"    value={selectedPlayer.town.name} />}
-                  {selectedPlayer.nation && <StatRow label="Nation"  value={selectedPlayer.nation.name} />}
-                  <StatRow label="Balance" value={fmtGold(selectedPlayer.stats?.balance ?? 0)} gold />
-                  {selectedPlayer.timestamps?.registered && (
-                    <StatRow label="Joined" value={new Date(selectedPlayer.timestamps.registered).toLocaleDateString()} />
-                  )}
-                  {selectedPlayer.timestamps?.lastOnline && (
-                    <StatRow label="Last Online" value={new Date(selectedPlayer.timestamps.lastOnline).toLocaleDateString()} />
-                  )}
-                  {selectedPlayer.stats?.numFriends !== undefined && (
-                    <StatRow label="Friends" value={String(selectedPlayer.stats.numFriends)} />
-                  )}
-                </Stack>
-              )}
-            </DialogContent>
-          </Dialog>
         </Box>
       )}
+
+      {/* ── Player detail dialog (global) ──────────────────────────────────── */}
+      <Dialog open={playerDialogOpen} onClose={() => { setPlayerDialogOpen(false); setSelectedPlayer(null) }} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+              {playerLoading ? 'Looking up player…' : (selectedPlayer?.name ?? '')}
+            </Typography>
+            <IconButton size="small" onClick={() => { setPlayerDialogOpen(false); setSelectedPlayer(null) }}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          {playerLoading ? (
+            <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', py: 3, justifyContent: 'center' }}>
+              <CircularProgress size={20} />
+            </Stack>
+          ) : selectedPlayer && (
+            <Stack sx={{ gap: 1 }}>
+              <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
+                {selectedPlayer.status?.isOnline && (
+                  <Chip label="Online" size="small" sx={{ height: 20, bgcolor: 'rgba(34,197,94,0.14)', color: '#22c55e' }} />
+                )}
+                {selectedPlayer.ranks?.townRanks?.map(r => (
+                  <Chip key={r} label={r} size="small" sx={{ height: 20, bgcolor: 'rgba(99,102,241,0.12)', color: '#a5b4fc' }} />
+                ))}
+                {selectedPlayer.ranks?.nationRanks?.map(r => (
+                  <Chip key={r} label={`${r} (nation)`} size="small" sx={{ height: 20, bgcolor: 'rgba(245,158,11,0.12)', color: '#f59e0b' }} />
+                ))}
+              </Stack>
+              {selectedPlayer.title  && <StatRow label="Title"   value={selectedPlayer.title} />}
+              {selectedPlayer.town   && <StatRow label="Town"    value={selectedPlayer.town.name} />}
+              {selectedPlayer.nation && <StatRow label="Nation"  value={selectedPlayer.nation.name} />}
+              <StatRow label="Balance" value={fmtGold(selectedPlayer.stats?.balance ?? 0)} gold />
+              {selectedPlayer.timestamps?.registered && (
+                <StatRow label="Joined" value={new Date(selectedPlayer.timestamps.registered).toLocaleDateString()} />
+              )}
+              {selectedPlayer.timestamps?.lastOnline && (
+                <StatRow label="Last Online" value={new Date(selectedPlayer.timestamps.lastOnline).toLocaleDateString()} />
+              )}
+              {selectedPlayer.stats?.numFriends !== undefined && (
+                <StatRow label="Friends" value={String(selectedPlayer.stats.numFriends)} />
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Online players dialog ──────────────────────────────────────────── */}
+      <Dialog open={onlineOpen} onClose={() => { setOnlineOpen(false); setOnlineSearch('') }} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>Online Now</Typography>
+              <Typography variant="caption" color="text.secondary">{online.length} players on EarthMC</Typography>
+            </Box>
+            <IconButton size="small" onClick={() => { setOnlineOpen(false); setOnlineSearch('') }}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <TextField size="small" fullWidth placeholder="Search players…" value={onlineSearch}
+            onChange={e => setOnlineSearch(e.target.value)}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment> } }}
+            sx={{ mb: 2 }}
+          />
+          {(() => {
+            const q = onlineSearch.toLowerCase()
+            const narmadaSet = new Set(nation?.residents.map(r => r.name) ?? [])
+            const narmadaOnline = online.filter(n => narmadaSet.has(n) && (!q || n.toLowerCase().includes(q)))
+            const others = online.filter(n => !narmadaSet.has(n) && (!q || n.toLowerCase().includes(q)))
+            return (
+              <>
+                {narmadaOnline.length > 0 && (
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="overline" sx={{ color: '#22c55e', letterSpacing: 2, fontWeight: 700, display: 'block', mb: 1 }}>
+                      🟢 Narmada ({narmadaOnline.length})
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                      {narmadaOnline.map(name => (
+                        <Chip key={name} label={name} size="small" clickable
+                          onClick={() => { setOnlineOpen(false); setOnlineSearch(''); fetchPlayer(name) }}
+                          sx={{ height: 24, fontSize: 11, bgcolor: 'rgba(34,197,94,0.14)', color: '#22c55e',
+                            border: '1px solid rgba(34,197,94,0.3)', fontWeight: 700,
+                            '&:hover': { bgcolor: 'rgba(99,102,241,0.2)', color: '#a5b4fc' } }}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+                {others.length > 0 && (
+                  <Box>
+                    <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontWeight: 700, display: 'block', mb: 1 }}>
+                      Other Players ({others.length})
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, maxHeight: 260, overflowY: 'auto', pr: 0.5 }}>
+                      {others.map(name => (
+                        <Chip key={name} label={name} size="small" clickable
+                          onClick={() => { setOnlineOpen(false); setOnlineSearch(''); fetchPlayer(name) }}
+                          sx={{ height: 22, fontSize: 10, bgcolor: 'rgba(255,255,255,0.06)', color: 'text.secondary',
+                            '&:hover': { bgcolor: 'rgba(99,102,241,0.2)', color: '#a5b4fc' } }}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+              </>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Discord links dialog ───────────────────────────────────────────── */}
+      <Dialog open={discordOpen} onClose={() => setDiscordOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+              <ForumIcon sx={{ color: '#5865F2', fontSize: 22 }} />
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>Discord</Typography>
+            </Stack>
+            <IconButton size="small" onClick={() => setDiscordOpen(false)}><CloseIcon fontSize="small" /></IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack sx={{ gap: 1.5 }}>
+            {DISCORD_LINKS.map(({ label, url, desc }) => (
+              <Card key={label} variant="outlined"
+                onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                sx={{ cursor: 'pointer', transition: 'border-color 0.15s', '&:hover': { borderColor: '#5865F2' } }}>
+                <CardContent sx={{ py: '10px !important', px: '14px !important' }}>
+                  <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{label}</Typography>
+                      <Typography variant="caption" color="text.secondary">{desc}</Typography>
+                    </Box>
+                    <LaunchIcon sx={{ fontSize: 16, color: '#5865F2', opacity: 0.7 }} />
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Minecraft servers dialog ───────────────────────────────────────── */}
+      <Dialog open={mcOpen} onClose={() => setMcOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+              <SportsEsportsIcon sx={{ color: '#22c55e', fontSize: 22 }} />
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>Servers</Typography>
+            </Stack>
+            <IconButton size="small" onClick={() => setMcOpen(false)}><CloseIcon fontSize="small" /></IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack sx={{ gap: 1.5 }}>
+            {MC_SERVERS.map(({ label, address }) => (
+              <Card key={label} variant="outlined">
+                <CardContent sx={{ py: '10px !important', px: '14px !important' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>{label}</Typography>
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+                    <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#a5b4fc', flex: 1 }}>{address}</Typography>
+                    <Tooltip title="Copy">
+                      <IconButton size="small" sx={{ p: 0.25 }}
+                        onClick={() => navigator.clipboard.writeText(address)}>
+                        <ContentCopyIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
+        </DialogContent>
+      </Dialog>
 
     </Box>
   )
@@ -869,7 +1062,7 @@ function TownCard({ town, online, onClick }: { town: TownInfo; online: string[];
             <Typography variant="caption" sx={{ fontWeight: 700, color: '#f59e0b' }}>{fmtGold(town.stats?.balance ?? 0)}</Typography>
           </Stack>
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="caption" color="text.secondary">Blocks</Typography>
+            <Typography variant="caption" color="text.secondary">Chunks</Typography>
             <Typography variant="caption">{town.stats?.numTownBlocks ?? 0} / {town.stats?.maxTownBlocks ?? 0}</Typography>
           </Stack>
         </Stack>
