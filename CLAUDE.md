@@ -40,13 +40,14 @@ src/
     WeatherScene.tsx # Animated weather scene components (sun/moon/rain/snow/storm) + getWeatherBg()
     LabMonitor.tsx  # Gauge cards for CPU/GPU/RAM/disk (static placeholders — needs NAS API)
     Analytics.tsx   # Network traffic area chart + storage bar chart (random mock data)
-    Portal.tsx      # App portal: Synology DSM, GitHub, Router, Cloud Storage link cards
+    Portal.tsx      # App portal: Lab tools (DSM, AdGuard, Plex, Router, VPN), Finance, Integrations. Accepts `onNavigate` prop to deep-link to other pages.
     Gallery.tsx     # Family photo gallery — category cards → drill-in with lightbox
     EarthMC.tsx     # EarthMC game monitor — shop dashboard, live SSE feed, nation overview
+    Etsy.tsx        # Etsy shop stub — Orders + Messages tabs (OAuth pending approval, no live calls yet)
 
 api/
-  server.js         # Express API: photos, tasks (JSON file), EarthMC proxy endpoints
-  Dockerfile        # Node 24-alpine image, port 3001 → NAS 8586
+  server.js         # Express API: photos, tasks (JSON file), EarthMC proxy endpoints, Etsy proxy stubs
+  Dockerfile        # Node 20-alpine image (NOT 24 — better-sqlite3 requires node:20), port 3001 → NAS 8586
 
 tests/
   health-check.sh   # Post-deploy smoke tests: all endpoints pass/fail, used in CI
@@ -82,8 +83,8 @@ nginx.conf          # SPA fallback: try_files → index.html
 Monitors the Narmada nation's mega shop in the town of Sita on the EarthMC Minecraft server.
 
 **Three tabs:**
-- **Shops** — fetches all barrels owned by `kakoritz` via `POST /shop`, displays stock level (red=out, amber<64, green≥64), price, per-unit price. Auto-refreshes every 5 min (matches server cache TTL). Sorted worst-stock-first.
-- **Live Feed** — SSE stream (`GET /events`) showing real-time sales, purchases, out-of-stock/space/gold alerts.
+- **Shops** — fetches all barrels owned by `kakoritz` via `POST /shop`, displays stock level (red=out, amber<64, green≥64), price, per-unit price. **Auto-refresh is OFF by default** (toggle to enable; fires once per 5-min cache window). Manual refresh button disabled while rate-limited. Status bar shows countdown + traffic-light dot. Sorted worst-stock-first.
+- **Live Feed** — SSE stream (`GET /events`). **Off by default** — user must toggle on. Shows real-time sales, purchases, out-of-stock/space/gold alerts. Sales are also recorded to SQLite by the server-side recorder (runs 24/7 even with no browser open).
 - **Nation** — Narmada balance, king, capital, residents (green dot = online), allies, enemies. Town cards grid (all 52 towns), clickable for detail popup. Clicking residents opens player info popup.
 
 **API:** `https://api.earthmc.net/v4` — read-only. No way to write/push data to shop barrels.
@@ -93,6 +94,8 @@ Monitors the Narmada nation's mega shop in the town of Sita on the EarthMC Minec
 In-game key commands: `/api key create`, `/api key delete`, `/api key copy`
 
 **MUI v9 gotcha:** ALL CSS/layout props must go inside `sx={}`. Direct shorthand props (`mb`, `gap`, `alignItems`, `fontWeight`, `textAlign`, etc.) are not accepted in MUI v9 — they were removed. Only component-specific props (`variant`, `color` on Typography, `direction`/`spacing` on Stack, etc.) remain as direct props.
+
+**SQLite sales history:** `api/server.js` runs a persistent server-side SSE connection to EarthMC that writes all sales to `/data/earthmc_sales.db` even when no browser is open. Browser also POSTs events as a backup. Table: `emc_sales` (id, recorded_at, event_type, player_name, item, price, amount, shop_type, stock, raw_json). Endpoints: `GET /api/earthmc/sales`, `POST /api/earthmc/sales`.
 
 **Planned future work:**
 - Contributor tracking per item (who supplies each item, their % cut, staff cuts) — data would live separately (not from API, which is read-only)
@@ -136,6 +139,44 @@ All requests: `POST` with `Content-Type: application/json`. Body always has `{ "
 - `POST /api/earthmc/towns` → `/towns`
 - `POST /api/earthmc/shop` → `/shop` (adds key from env, no auth header)
 - `GET /api/earthmc/events` → `/events` (SSE, proxied with Bearer header)
+
+## Etsy integration (Etsy.tsx)
+
+**Status:** OAuth pending Etsy approval. `VITE_ETSY_KEY` and `VITE_ETSY_SECRET` are in GitHub secrets. API key is passed to `dashboard-api` as `ETSY_API_KEY` env var.
+
+**Planned scope (orders + messages only):**
+- **Orders tab** — open orders, highlight anything unfulfilled >24h in red
+- **Messages tab** — buyer conversations, flag any unanswered thread >24h; inline reply composer
+
+**API:** `https://openapi.etsy.com/v3`. Public endpoints use `x-api-key` header; private use OAuth2 Bearer. Rate limit: 5 QPS / 5K QPD.
+
+**Proxy stubs in `api/server.js`:**
+- `GET /api/etsy/orders` → `/application/shops/me/receipts?status=open&limit=25`
+- `GET /api/etsy/messages` → `/application/conversations?limit=25`
+
+These endpoints are wired up but will return errors until OAuth is approved and token is configured. Do NOT ping Etsy URLs until OAuth approval is confirmed.
+
+**Portal card:** Etsy card (orange, `#f97316`) navigates to the Etsy page via `onNavigate` prop on Portal. No longer a "coming soon" gray stub.
+
+## Outlook integration (planned)
+
+**Goal:** Scan inbox, auto-move spam, surface threads needing a reply within 24h, auto-draft responses (using Claude API server-side).
+
+**Auth path:** Microsoft Graph API via Azure app registration (free). Refresh token stored as server env var. Uses `adam@adamscottspiker.org`.
+
+**Not yet started** — awaiting user direction on which accounts to connect and whether domain is on Microsoft 365 or self-hosted Exchange.
+
+## Portal structure
+
+Sections: **Lab & Tools** (DSM, AdGuard, Docker, GitHub Actions, Router, VPN, Plex), **Finance & Communication** (Banking, Email), **Integrations** (Telegram stub, Etsy → Etsy page).
+
+Streaming section (YouTube, Netflix, Disney+) was removed. Plex merged into Lab & Tools.
+
+`Portal` accepts `onNavigate?: (page: string) => void` — passed from `App.tsx` so cards can deep-link to other pages (e.g. Etsy card navigates to `'etsy'`).
+
+## CI loop behavior
+
+When babysitting GitHub Actions: only monitor during an active push. Once the run completes green, stop — do not maintain a persistent background monitor between pushes.
 
 ## Photo API categories (server.js)
 `jaxson`, `sophia`, `evelyn`, `family`, `wedding`, `maternity`, `animals` — each maps to one or more folder names under the Photos root.
