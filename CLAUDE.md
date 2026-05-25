@@ -4,11 +4,12 @@
 A personal home lab dashboard built with React + TypeScript + Vite + MUI (Material UI v9). It runs inside Docker on a Synology NAS (`spiker-nas-1`, `192.168.1.251`) and is accessible on the local network at port 8585. A companion Node/Express photo API runs on the same NAS at port 8586.
 
 ## Deploy pipeline
-Push to `main` → GitHub Actions runs two jobs in parallel:
+Push to `main` → GitHub Actions runs these jobs:
 
 1. **`build-and-push`** (GitHub-hosted runner): builds the React app into a Docker image, pushes to `ghcr.io/kakoritz/project-kakoritz:latest`.
-2. **`build-photo-api`** (self-hosted runner on the NAS): builds `./photo-api`, saves/loads the image over SSH to the NAS, then restarts the `photo-api` container.
-3. **`deploy-dashboard`** (self-hosted runner, depends on `build-and-push`): SSHs into the NAS, pulls the new image, restarts the `project-kakoritz` container.
+2. **`build-api`** (self-hosted runner `kakoritz-laptop`): builds `./api` (Node/Express), SSHes image to NAS, restarts `dashboard-api` container on port 8586.
+3. **`build-claude-api`** (self-hosted runner): builds `./claude-api`, SSHes image to NAS, restarts `claude-api` container on port 8587.
+4. **`deploy-dashboard`** (self-hosted runner, depends on `build-and-push`): SSHs into NAS, pulls new image, restarts `project-kakoritz` container on port 8585. Runs `tests/health-check.sh` afterward.
 
 NAS SSH user: `aspiker` at `192.168.1.251`. Docker binary on NAS: `/var/packages/ContainerManager/target/usr/bin/docker`.
 
@@ -43,11 +44,14 @@ src/
     Gallery.tsx     # Family photo gallery — category cards → drill-in with lightbox
     EarthMC.tsx     # EarthMC game monitor — shop dashboard, live SSE feed, nation overview
 
-photo-api/
-  server.js         # Express API serving photos from /volume1/Data/Pictures/FAMILY on NAS
-  Dockerfile        # Node 24-alpine image, port 3001
+api/
+  server.js         # Express API: photos, tasks (JSON file), EarthMC proxy endpoints
+  Dockerfile        # Node 24-alpine image, port 3001 → NAS 8586
 
-Dockerfile          # Multi-stage: node build → nginx:alpine, port 80
+tests/
+  health-check.sh   # Post-deploy smoke tests: all endpoints pass/fail, used in CI
+
+Dockerfile          # Multi-stage: node build → nginx:alpine, port 80 → NAS 8585
 nginx.conf          # SPA fallback: try_files → index.html
 ```
 
@@ -78,19 +82,60 @@ nginx.conf          # SPA fallback: try_files → index.html
 Monitors the Narmada nation's mega shop in the town of Sita on the EarthMC Minecraft server.
 
 **Three tabs:**
-- **Shops** — fetches all barrels owned by `kakoritz` via `POST /shop`, displays stock level (red=out, amber<64, green≥64), price, per-unit price, coordinates. Auto-refreshes every 30s. Sorted worst-stock-first.
+- **Shops** — fetches all barrels owned by `kakoritz` via `POST /shop`, displays stock level (red=out, amber<64, green≥64), price, per-unit price. Auto-refreshes every 5 min (matches server cache TTL). Sorted worst-stock-first.
 - **Live Feed** — SSE stream (`GET /events`) showing real-time sales, purchases, out-of-stock/space/gold alerts.
-- **Nation** — Narmada balance, king, capital, residents (green dot = online), allies, enemies.
+- **Nation** — Narmada balance, king, capital, residents (green dot = online), allies, enemies. Town cards grid (all 52 towns), clickable for detail popup. Clicking residents opens player info popup.
 
 **API:** `https://api.earthmc.net/v4` — read-only. No way to write/push data to shop barrels.
 
-**Auth:** API key stored as GitHub Secret `VITE_EARTHMC_API_KEY`. Baked into the Docker image at build time via `--build-arg`. Also set `VITE_EARTHMC_PLAYER` and `VITE_EARTHMC_NATION` (defaults hardcoded as `kakoritz` / `Narmada`).
+**Auth:** API key stored as GitHub Secret `VITE_EARTHMC_API_KEY`. The key is passed at runtime as `EARTHMC_API_KEY` env var to the `dashboard-api` container (NOT baked into the frontend). Also used for SSE events.
+
+In-game key commands: `/api key create`, `/api key delete`, `/api key copy`
 
 **MUI v9 gotcha:** ALL CSS/layout props must go inside `sx={}`. Direct shorthand props (`mb`, `gap`, `alignItems`, `fontWeight`, `textAlign`, etc.) are not accepted in MUI v9 — they were removed. Only component-specific props (`variant`, `color` on Typography, `direction`/`spacing` on Stack, etc.) remain as direct props.
 
 **Planned future work:**
 - Contributor tracking per item (who supplies each item, their % cut, staff cuts) — data would live separately (not from API, which is read-only)
 - The user maintains a spreadsheet for this — future idea is to surface it alongside live stock data
+
+## EarthMC API v4 — complete reference
+
+Base: `https://api.earthmc.net/v4`
+
+All requests: `POST` with `Content-Type: application/json`. Body always has `{ "query": [...] }`.
+
+**Public endpoints (no key required):**
+| Endpoint | Body | Returns |
+|---|---|---|
+| `POST /players` | `{"query":["name or uuid"]}` | Array of player objects |
+| `POST /nations` | `{"query":["name or uuid"]}` | Array of nation objects |
+| `POST /towns` | `{"query":["name or uuid"]}` | Array of town objects |
+| `GET /online` | — | `{ players: [{name}], ...}` |
+| `GET /` | — | Server metadata (version, stats, moon phase) |
+
+**Private endpoints (API key required):**
+
+`POST /shop` — CRITICAL: key goes in POST body ONLY. Do NOT send an `Authorization: Bearer` header — it will return "Could not find an owner for this API key". The correct format is:
+```json
+{ "query": ["PLAYER_UUID"], "key": "API_KEY" }
+```
+- The UUID must be the same player who owns the API key, or an empty list is returned.
+- Response format: `[{ "1": shopObj, "2": shopObj, ... }]` — an array with ONE element that is a dict of counter_id → shop. Flatten with `Object.values(data[0])`.
+- Shop object fields: `item` (string), `price` (number), `amount` (number), `type` ("selling"|"buying"), `stock` (number). No `location` field (docs don't mention it).
+- Rate limit: very aggressive. Server-side 5-min cache in `api/server.js` prevents repeat hits.
+
+`GET /events?listen=EventType1,EventType2` — SSE stream. Requires `Authorization: Bearer API_KEY` in headers. Event types: `ShopSoldItem`, `ShopBoughtItem`, `ShopOutOfStock`, `ShopOutOfSpace`, `ShopOutOfGold`.
+
+**kakoritz player UUID:** `5964140b-a902-48f6-832a-a385c0e17145`
+
+**CORS:** EarthMC's API returns 404 on CORS preflight. All calls must be proxied server-to-server (NAS Express → EarthMC). Never call EarthMC directly from the browser.
+
+**Proxy routes in `api/server.js`:**
+- `POST /api/earthmc/players` → `/players`
+- `POST /api/earthmc/nations` → `/nations`
+- `POST /api/earthmc/towns` → `/towns`
+- `POST /api/earthmc/shop` → `/shop` (adds key from env, no auth header)
+- `GET /api/earthmc/events` → `/events` (SSE, proxied with Bearer header)
 
 ## Photo API categories (server.js)
 `jaxson`, `sophia`, `evelyn`, `family`, `wedding`, `maternity`, `animals` — each maps to one or more folder names under the Photos root.
