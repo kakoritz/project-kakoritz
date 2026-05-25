@@ -180,7 +180,7 @@ export default function Gallery() {
         if (thumbs.length) setHeroSrc(thumbs[Math.floor(Math.random() * thumbs.length)])
         setLoading(false)
       })
-      .catch(() => { setError('Cannot reach photo API on port 8586.'); setLoading(false) })
+      .catch(() => { setError('Cannot reach dashboard API on port 8586.'); setLoading(false) })
   }, [])
 
   // Hero rotates every 15s too

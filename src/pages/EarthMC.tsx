@@ -18,7 +18,7 @@ const API_KEY     = import.meta.env.VITE_EARTHMC_API_KEY  ?? ''
 const PLAYER_NAME = import.meta.env.VITE_EARTHMC_PLAYER   ?? 'kakoritz'
 const NATION_NAME = import.meta.env.VITE_EARTHMC_NATION   ?? 'Narmada'
 const API_BASE    = 'https://api.earthmc.net/v4'
-const PHOTO_API   = 'http://192.168.1.251:8586'
+const NAS_API   = 'http://192.168.1.251:8586'
 const SHOP_POLL   = 30_000
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ export default function EarthMC() {
 
   // ── API calls ───────────────────────────────────────────────────────────────
   const getUUID = useCallback(async (): Promise<string> => {
-    const res = await fetch(`${PHOTO_API}/api/earthmc/players`, {
+    const res = await fetch(`${NAS_API}/api/earthmc/players`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: [PLAYER_NAME] }),
@@ -123,7 +123,7 @@ export default function EarthMC() {
   const fetchShops = useCallback(async (playerUUID: string) => {
     setShopError(null)
     try {
-      const res = await fetch(`${PHOTO_API}/api/earthmc/shop`, {
+      const res = await fetch(`${NAS_API}/api/earthmc/shop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: [playerUUID] }),
@@ -140,7 +140,7 @@ export default function EarthMC() {
   }, [])
 
   const fetchNation = useCallback(async () => {
-    const res = await fetch(`${PHOTO_API}/api/earthmc/nations`, {
+    const res = await fetch(`${NAS_API}/api/earthmc/nations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: [NATION_NAME] }),
@@ -164,7 +164,7 @@ export default function EarthMC() {
     const ctrl = new AbortController()
     sseAbort.current = ctrl
 
-    fetch(`${PHOTO_API}/api/earthmc/events?listen=${SSE_EVENTS}`, {
+    fetch(`${NAS_API}/api/earthmc/events?listen=${SSE_EVENTS}`, {
       signal: ctrl.signal,
     })
       .then(async res => {

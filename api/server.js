@@ -122,7 +122,9 @@ async function emcProxy(path, body, res) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    const data = await r.json()
+    const text = await r.text()
+    let data
+    try { data = JSON.parse(text) } catch { data = { error: text } }
     res.status(r.status).json(data)
   } catch (e) {
     res.status(502).json({ error: e.message })
@@ -141,7 +143,9 @@ app.post('/api/earthmc/shop', async (req, res) => {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ ...req.body, key }),
     })
-    const data = await r.json()
+    const text = await r.text()
+    let data
+    try { data = JSON.parse(text) } catch { data = { error: text } }
     res.status(r.status).json(data)
   } catch (e) {
     res.status(502).json({ error: e.message })
