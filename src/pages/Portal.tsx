@@ -13,10 +13,7 @@ import Inventory2Icon from '@mui/icons-material/Inventory2'
 import EmailIcon from '@mui/icons-material/Email'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import CloseIcon from '@mui/icons-material/Close'
-import PlayCircleIcon from '@mui/icons-material/PlayCircle'
 import MovieIcon from '@mui/icons-material/Movie'
-import LiveTvIcon from '@mui/icons-material/LiveTv'
-import AutoStoriesIcon from '@mui/icons-material/AutoStories'
 import VpnLockIcon from '@mui/icons-material/VpnLock'
 import TelegramIcon from '@mui/icons-material/Telegram'
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag'
@@ -30,13 +27,7 @@ const APPS = [
   { name: 'Actions',         desc: 'GitHub CI',     url: 'https://github.com/kakoritz/project-kakoritz/actions', icon: <CodeIcon />,       color: '#a78bfa' },
   { name: 'Router',          desc: 'Network',       url: 'http://192.168.1.1',                                    icon: <RouterIcon />,     color: '#f59e0b' },
   { name: 'VPN',             desc: 'Coming soon',   url: null,                                                    icon: <VpnLockIcon />,    color: '#64748b' },
-]
-
-const STREAMING = [
-  { name: 'YouTube',  desc: 'Video',       url: 'https://www.youtube.com',          icon: <PlayCircleIcon />, color: '#ef4444' },
-  { name: 'Plex',     desc: 'Local Media', url: 'http://192.168.1.251:32400/web',   icon: <MovieIcon />,      color: '#e5a00d' },
-  { name: 'Netflix',  desc: 'Streaming',   url: 'https://www.netflix.com',          icon: <LiveTvIcon />,     color: '#dc2626' },
-  { name: 'Disney+',  desc: 'Streaming',   url: 'https://www.disneyplus.com',       icon: <AutoStoriesIcon />,color: '#3b82f6' },
+  { name: 'Plex',           desc: 'Local Media',   url: 'http://192.168.1.251:32400/web',                        icon: <MovieIcon />,      color: '#e5a00d' },
 ]
 
 const EMAIL_ACCOUNTS = [
@@ -153,7 +144,7 @@ function PickerDialog({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function Portal() {
+export default function Portal({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const [emailOpen, setEmailOpen] = useState(false)
   const [bankOpen,  setBankOpen]  = useState(false)
 
@@ -181,22 +172,6 @@ export default function Portal() {
             <IconCard
               name={app.name} desc={app.desc} color={app.color} icon={app.icon}
               onClick={() => app.url ? window.open(app.url, '_blank') : undefined}
-            />
-          </Grid>
-        ))}
-
-        {/* ── Streaming ── */}
-        <Grid size={12}>
-          <Typography variant="overline" color="text.disabled" sx={{ letterSpacing: 1.5, fontSize: 11, mt: 0.5, display: 'block' }}>
-            Streaming
-          </Typography>
-        </Grid>
-
-        {STREAMING.map((app) => (
-          <Grid size={{ xs: 4, sm: 3, md: 2 }} key={app.name}>
-            <IconCard
-              name={app.name} desc={app.desc} color={app.color} icon={app.icon}
-              onClick={() => window.open(app.url, '_blank')}
             />
           </Grid>
         ))}
@@ -241,9 +216,9 @@ export default function Portal() {
 
         <Grid size={{ xs: 4, sm: 3, md: 2 }}>
           <IconCard
-            name="Etsy" desc="Coming soon" color="#64748b"
+            name="Etsy" desc="Orders &amp; msgs" color="#f97316"
             icon={<ShoppingBagIcon />}
-            onClick={() => {}}
+            onClick={() => onNavigate?.('etsy')}
           />
         </Grid>
 

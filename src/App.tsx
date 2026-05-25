@@ -12,7 +12,9 @@ import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
 import ChecklistIcon from '@mui/icons-material/Checklist'
 import TerrainIcon from '@mui/icons-material/Terrain'
+import ShoppingBagIcon from '@mui/icons-material/ShoppingBag'
 import Portal from './pages/Portal'
+import Etsy from './pages/Etsy'
 import Weather from './pages/Weather'
 import Gallery from './pages/Gallery'
 import ClaudeChat from './pages/ClaudeChat'
@@ -51,6 +53,7 @@ const NAV = [
   { label: 'Claude AI', mobileLabel: 'AI',      icon: <SmartToyIcon />,     page: 'claude'  },
   { label: 'Tasks',     mobileLabel: 'Tasks',   icon: <ChecklistIcon />,    page: 'tasks'   },
   { label: 'EarthMC',  mobileLabel: 'EMC',     icon: <TerrainIcon />,      page: 'earthmc' },
+  { label: 'Etsy',     mobileLabel: 'Etsy',    icon: <ShoppingBagIcon />,  page: 'etsy'    },
 ]
 
 export default function App() {
@@ -88,13 +91,14 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'portal':  return <Portal />
+      case 'portal':  return <Portal onNavigate={setPage} />
       case 'weather': return <Weather />
       case 'gallery': return <Gallery />
       case 'claude':  return <ClaudeChat />
       case 'tasks':   return <Tasks />
       case 'earthmc': return <EarthMC />
-      default:        return <Portal />
+      case 'etsy':    return <Etsy />
+      default:        return <Portal onNavigate={setPage} />
     }
   }
 

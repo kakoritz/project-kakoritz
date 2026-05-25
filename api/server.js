@@ -151,6 +151,29 @@ app.delete('/api/tasks/:id', (req, res) => {
   res.json({ ok: true })
 })
 
+// ── Etsy API proxy (OAuth pending approval) ───────────────────────────────────
+const ETSY_BASE = 'https://openapi.etsy.com/v3'
+
+async function etsyGet(path, res) {
+  const key = process.env.ETSY_API_KEY || ''
+  if (!key) return res.status(503).json({ error: 'ETSY_API_KEY not configured' })
+  try {
+    const r = await fetch(`${ETSY_BASE}${path}`, {
+      headers: { 'x-api-key': key, 'Accept': 'application/json' },
+    })
+    const text = await r.text()
+    let data
+    try { data = JSON.parse(text) } catch { data = { error: text } }
+    res.status(r.status).json(data)
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+}
+
+// Stub endpoints — will return live data once OAuth is approved and ETSY_API_KEY is active
+app.get('/api/etsy/orders',   (req, res) => etsyGet('/application/shops/me/receipts?status=open&limit=25', res))
+app.get('/api/etsy/messages', (req, res) => etsyGet('/application/conversations?limit=25', res))
+
 // ── EarthMC proxies ───────────────────────────────────────────────────────────
 async function emcProxy(urlPath, body, res) {
   try {
