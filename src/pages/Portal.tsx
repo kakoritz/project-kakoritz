@@ -11,6 +11,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import SecurityIcon from '@mui/icons-material/Security'
 import Inventory2Icon from '@mui/icons-material/Inventory2'
 import EmailIcon from '@mui/icons-material/Email'
+import InboxIcon from '@mui/icons-material/Inbox'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import CloseIcon from '@mui/icons-material/Close'
 import MovieIcon from '@mui/icons-material/Movie'
@@ -208,9 +209,9 @@ export default function Portal({ onNavigate }: { onNavigate?: (page: string) => 
 
         <Grid size={{ xs: 4, sm: 3, md: 2 }}>
           <IconCard
-            name="Telegram" desc="Coming soon" color="#64748b"
-            icon={<TelegramIcon />}
-            onClick={() => {}}
+            name="Outlook" desc="Inbox &amp; drafts" color="#0078d4"
+            icon={<InboxIcon />}
+            onClick={() => onNavigate?.('outlook')}
           />
         </Grid>
 
@@ -219,6 +220,14 @@ export default function Portal({ onNavigate }: { onNavigate?: (page: string) => 
             name="Etsy" desc="Orders &amp; msgs" color="#f97316"
             icon={<ShoppingBagIcon />}
             onClick={() => onNavigate?.('etsy')}
+          />
+        </Grid>
+
+        <Grid size={{ xs: 4, sm: 3, md: 2 }}>
+          <IconCard
+            name="Telegram" desc="Coming soon" color="#64748b"
+            icon={<TelegramIcon />}
+            onClick={() => {}}
           />
         </Grid>
 

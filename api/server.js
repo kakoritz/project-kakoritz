@@ -174,6 +174,69 @@ async function etsyGet(path, res) {
 app.get('/api/etsy/orders',   (req, res) => etsyGet('/application/shops/me/receipts?status=open&limit=25', res))
 app.get('/api/etsy/messages', (req, res) => etsyGet('/application/conversations?limit=25', res))
 
+// ── Outlook / Microsoft Graph proxy (Azure app registration pending) ──────────
+const GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
+
+async function graphGet(path, res) {
+  const token = process.env.OUTLOOK_ACCESS_TOKEN || ''
+  if (!token) return res.status(503).json({ error: 'OUTLOOK_ACCESS_TOKEN not configured — register Azure app first' })
+  try {
+    const r = await fetch(`${GRAPH_BASE}${path}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    })
+    const text = await r.text()
+    let data
+    try { data = JSON.parse(text) } catch { data = { error: text } }
+    res.status(r.status).json(data)
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+}
+
+// Inbox: most recent 25 messages
+app.get('/api/outlook/inbox', (req, res) =>
+  graphGet('/me/mailFolders/inbox/messages?$top=25&$orderby=receivedDateTime+desc&$select=id,subject,from,receivedDateTime,isRead,bodyPreview', res)
+)
+// Threads needing reply: messages in inbox with no sent reply in last 24h (simplified: unflagged, no reply)
+app.get('/api/outlook/needs-reply', (req, res) =>
+  graphGet('/me/mailFolders/inbox/messages?$top=25&$orderby=receivedDateTime+desc&$filter=isRead+eq+true+and+flag/flagStatus+eq+\'notFlagged\'&$select=id,subject,from,receivedDateTime,isRead,bodyPreview', res)
+)
+// Move message to Junk
+app.post('/api/outlook/move-junk', async (req, res) => {
+  const token = process.env.OUTLOOK_ACCESS_TOKEN || ''
+  if (!token) return res.status(503).json({ error: 'OUTLOOK_ACCESS_TOKEN not configured' })
+  const { messageId } = req.body
+  if (!messageId) return res.status(400).json({ error: 'messageId required' })
+  try {
+    const r = await fetch(`${GRAPH_BASE}/me/messages/${messageId}/move`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destinationId: 'junkemail' }),
+    })
+    const data = await r.json().catch(() => ({}))
+    res.status(r.status).json(data)
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+})
+// Send a reply
+app.post('/api/outlook/reply', async (req, res) => {
+  const token = process.env.OUTLOOK_ACCESS_TOKEN || ''
+  if (!token) return res.status(503).json({ error: 'OUTLOOK_ACCESS_TOKEN not configured' })
+  const { messageId, body } = req.body
+  if (!messageId || !body) return res.status(400).json({ error: 'messageId and body required' })
+  try {
+    const r = await fetch(`${GRAPH_BASE}/me/messages/${messageId}/reply`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: { body: { contentType: 'text', content: body } } }),
+    })
+    res.status(r.status).json({ ok: r.ok })
+  } catch (e) {
+    res.status(502).json({ error: e.message })
+  }
+})
+
 // ── EarthMC proxies ───────────────────────────────────────────────────────────
 async function emcProxy(urlPath, body, res) {
   try {

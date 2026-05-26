@@ -3,7 +3,8 @@ import {
   Alert, Box, Card, CardContent, Chip, CircularProgress,
   Dialog, DialogContent, DialogTitle,
   Divider, Grid, IconButton, InputAdornment,
-  Stack, Switch, Tab, Tabs, TextField, Tooltip, Typography,
+  Stack, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow,
+  TableSortLabel, Tabs, TextField, Tooltip, Typography,
 } from '@mui/material'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import SearchIcon from '@mui/icons-material/Search'
@@ -97,6 +98,7 @@ interface SaleRecord {
 }
 
 type StockLevel = 'out' | 'low' | 'ok'
+type SortCol    = 'stock' | 'item' | 'price' | 'perUnit' | 'amount' | 'type'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtItem = (s: string) =>
@@ -196,6 +198,11 @@ export default function EarthMC() {
   const [countdown, setCountdown]           = useState('')
   const ssePausedRef      = useRef(false)
   const lastAutoRefreshRef = useRef(0)
+
+  // ── Shop grid sort / filter ─────────────────────────────────────────────────
+  const [sortCol, setSortCol]       = useState<SortCol>('stock')
+  const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('asc')
+  const [shopFilter, setShopFilter] = useState<'all' | 'out' | 'low' | 'buying'>('all')
 
   // ── API calls ───────────────────────────────────────────────────────────────
   const getUUID = useCallback(async (): Promise<string> => {
@@ -469,13 +476,38 @@ export default function EarthMC() {
   }, [tab, nation, fetchTowns])
 
   // ── Derived data ────────────────────────────────────────────────────────────
-  const filtered = shops.filter(s =>
-    fmtItem(s.item).toLowerCase().includes(search.toLowerCase())
-  )
-
   const alerts   = shops.filter(s => stockLevel(s.stock) !== 'ok')
   const outCount = alerts.filter(s => s.stock === 0).length
   const lowCount = alerts.filter(s => s.stock > 0 && s.stock < 64).length
+
+  // Shop grid: search + quick filter + sort
+  const gridRows = shops
+    .filter(s => {
+      const matchesText = fmtItem(s.item).toLowerCase().includes(search.toLowerCase())
+      const matchesFilter =
+        shopFilter === 'all'    ? true :
+        shopFilter === 'out'    ? s.stock === 0 :
+        shopFilter === 'low'    ? (s.stock > 0 && s.stock < 64) :
+        shopFilter === 'buying' ? s.type === 'buying' : true
+      return matchesText && matchesFilter
+    })
+    .sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1
+      switch (sortCol) {
+        case 'stock':   return (a.stock - b.stock) * dir
+        case 'item':    return fmtItem(a.item).localeCompare(fmtItem(b.item)) * dir
+        case 'price':   return (a.price - b.price) * dir
+        case 'perUnit': return ((a.price / a.amount) - (b.price / b.amount)) * dir
+        case 'amount':  return (a.amount - b.amount) * dir
+        case 'type':    return a.type.localeCompare(b.type) * dir
+        default:        return 0
+      }
+    })
+
+  function handleSort(col: SortCol) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
 
   if (!API_KEY) {
     return (
@@ -634,107 +666,172 @@ export default function EarthMC() {
             </Alert>
           )}
 
-          <TextField
-            size="small"
-            placeholder="Filter items…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                  </InputAdornment>
-                ),
-              },
-            }}
-            sx={{ mb: 2, width: { xs: '100%', sm: 300 } }}
-          />
+          {/* ── Quick filters + search ───────────────────────────────────── */}
+          <Stack direction="row" sx={{ gap: 1, mb: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+            {([
+              { key: 'all',    label: `All (${shops.length})` },
+              { key: 'out',    label: `Out of Stock (${outCount})`,  color: '#ef4444' },
+              { key: 'low',    label: `Low (${lowCount})`,           color: '#f59e0b' },
+              { key: 'buying', label: `Buying (${shops.filter(s => s.type === 'buying').length})`, color: '#60a5fa' },
+            ] as const).map(f => (
+              <Chip
+                key={f.key}
+                label={f.label}
+                size="small"
+                onClick={() => setShopFilter(f.key)}
+                sx={{
+                  cursor: 'pointer',
+                  fontWeight: shopFilter === f.key ? 700 : 400,
+                  bgcolor: shopFilter === f.key
+                    ? `${f.color ?? '#6366f1'}22`
+                    : 'rgba(255,255,255,0.05)',
+                  color: shopFilter === f.key ? (f.color ?? '#a5b4fc') : 'text.secondary',
+                  border: `1px solid ${shopFilter === f.key ? (f.color ?? '#6366f1') + '55' : 'transparent'}`,
+                }}
+              />
+            ))}
+            <TextField
+              size="small"
+              placeholder="Search items…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+              sx={{ ml: 'auto', width: { xs: '100%', sm: 220 }, '& .MuiInputBase-root': { fontSize: 13 } }}
+            />
+          </Stack>
 
-          {(['selling', 'buying'] as const).map(type => {
-            const group = filtered.filter(s => s.type === type)
-            if (!group.length) return null
-            return (
-              <Box key={type} sx={{ mb: 3 }}>
-                <Typography
-                  variant="overline"
-                  color="text.secondary"
-                  sx={{ letterSpacing: 2, mb: 1.5, display: 'block', fontWeight: 700 }}
-                >
-                  {type === 'selling' ? '💰 Selling' : '🛒 Buying'} — {group.length} shops
-                </Typography>
-
-                <Grid container spacing={1.5}>
-                  {group
-                    .sort((a, b) => stockLevel(a.stock) === 'out' ? -1 : stockLevel(b.stock) === 'out' ? 1 : a.stock - b.stock)
-                    .map((shop, i) => {
-                      const level     = stockLevel(shop.stock)
-                      const col       = STOCK_COLOR[level]
-                      const priceEach = shop.price / shop.amount
-                      return (
-                        <Grid key={i} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-                          <Card
-                            variant="outlined"
+          {/* ── Sortable data table ──────────────────────────────────────── */}
+          <Box sx={{
+            borderRadius: 2,
+            border: '1px solid rgba(255,255,255,0.07)',
+            overflow: 'hidden',
+          }}>
+            <Box sx={{ overflowX: 'auto' }}>
+              <Table size="small" sx={{ minWidth: 560 }}>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'rgba(255,255,255,0.03)' }}>
+                    {([
+                      { id: 'stock' as SortCol,   label: 'Stock',    align: 'right'  },
+                      { id: 'item' as SortCol,    label: 'Item',     align: 'left'   },
+                      { id: 'type' as SortCol,    label: 'Type',     align: 'center' },
+                      { id: 'amount' as SortCol,  label: 'Lot',      align: 'right'  },
+                      { id: 'price' as SortCol,   label: 'Price',    align: 'right'  },
+                      { id: 'perUnit' as SortCol, label: 'Per Unit', align: 'right'  },
+                    ] as const).map(col => (
+                      <TableCell
+                        key={col.id}
+                        align={col.align as 'left' | 'right' | 'center'}
+                        sx={{ py: 1, borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'text.secondary', fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}
+                      >
+                        <TableSortLabel
+                          active={sortCol === col.id}
+                          direction={sortCol === col.id ? sortDir : 'asc'}
+                          onClick={() => handleSort(col.id)}
+                          sx={{
+                            color: 'text.secondary !important',
+                            '&.Mui-active': { color: '#a5b4fc !important' },
+                            '& .MuiTableSortLabel-icon': { color: '#a5b4fc !important' },
+                          }}
+                        >
+                          {col.label}
+                        </TableSortLabel>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {gridRows.map((shop, i) => {
+                    const level    = stockLevel(shop.stock)
+                    const col      = STOCK_COLOR[level]
+                    const perUnit  = shop.price / shop.amount
+                    const rowBg    = level === 'out' ? 'rgba(239,68,68,0.05)' : level === 'low' ? 'rgba(245,158,11,0.03)' : 'transparent'
+                    return (
+                      <TableRow
+                        key={i}
+                        sx={{
+                          bgcolor: rowBg,
+                          '&:hover': { bgcolor: 'rgba(99,102,241,0.06)' },
+                          '& td': { borderBottom: '1px solid rgba(255,255,255,0.04)', py: 1 },
+                        }}
+                      >
+                        {/* Stock */}
+                        <TableCell align="right" sx={{ width: 90 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.75 }}>
+                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: col, boxShadow: `0 0 5px ${col}99`, flexShrink: 0 }} />
+                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: col, fontFamily: 'monospace' }}>
+                              {shop.stock === 0 ? 'OUT' : shop.stock.toLocaleString()}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        {/* Item */}
+                        <TableCell sx={{ maxWidth: 200 }}>
+                          <Typography sx={{ fontSize: 13, fontWeight: 600 }} noWrap title={fmtItem(shop.item)}>
+                            {fmtItem(shop.item)}
+                          </Typography>
+                        </TableCell>
+                        {/* Type */}
+                        <TableCell align="center" sx={{ width: 80 }}>
+                          <Chip
+                            label={shop.type === 'selling' ? 'Sell' : 'Buy'}
+                            size="small"
                             sx={{
-                              height: '100%',
-                              borderColor: level === 'out' ? 'rgba(239,68,68,0.45)' : level === 'low' ? 'rgba(245,158,11,0.35)' : 'rgba(255,255,255,0.08)',
-                              bgcolor: level === 'out' ? 'rgba(239,68,68,0.06)' : 'background.paper',
-                              transition: 'transform 0.15s, border-color 0.15s',
-                              '&:hover': { transform: 'translateY(-2px)', borderColor: 'primary.main' },
+                              height: 18, fontSize: 10, fontWeight: 700,
+                              bgcolor: shop.type === 'selling' ? 'rgba(34,197,94,0.12)' : 'rgba(96,165,250,0.12)',
+                              color:   shop.type === 'selling' ? '#22c55e' : '#60a5fa',
                             }}
-                          >
-                            <CardContent sx={{ p: '12px !important' }}>
-                              <Typography variant="body2" noWrap title={fmtItem(shop.item)}
-                                sx={{ mb: 0.75, lineHeight: 1.3, fontWeight: 700 }}>
-                                {fmtItem(shop.item)}
-                              </Typography>
+                          />
+                        </TableCell>
+                        {/* Lot */}
+                        <TableCell align="right" sx={{ width: 60 }}>
+                          <Typography sx={{ fontSize: 12, color: 'text.secondary', fontFamily: 'monospace' }}>
+                            {shop.amount}×
+                          </Typography>
+                        </TableCell>
+                        {/* Price */}
+                        <TableCell align="right" sx={{ width: 90 }}>
+                          <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#f59e0b', fontFamily: 'monospace' }}>
+                            {fmtGold(shop.price)}
+                          </Typography>
+                        </TableCell>
+                        {/* Per unit */}
+                        <TableCell align="right" sx={{ width: 90 }}>
+                          <Typography sx={{ fontSize: 12, color: 'text.secondary', fontFamily: 'monospace' }}>
+                            {fmtGold(perUnit)}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </Box>
 
-                              <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, mb: 0.75 }}>
-                                <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: col, flexShrink: 0, boxShadow: `0 0 5px ${col}80` }} />
-                                <Typography variant="caption" color={col} sx={{ lineHeight: 1, fontWeight: 700 }}>
-                                  {shop.stock === 0 ? 'OUT' : shop.stock.toLocaleString()}
-                                </Typography>
-                                {shop.stock > 0 && (
-                                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-                                    in stock
-                                  </Typography>
-                                )}
-                              </Stack>
-
-                              <Divider sx={{ mb: 0.75, opacity: 0.25 }} />
-
-                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                <Typography variant="caption" color="text.secondary">{shop.amount}x</Typography>
-                                <Typography variant="caption" color="#f59e0b" sx={{ fontWeight: 700 }}>{fmtGold(shop.price)}</Typography>
-                              </Stack>
-
-                              {shop.amount > 1 && (
-                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, opacity: 0.7 }}>
-                                  {fmtGold(priceEach)}/ea
-                                </Typography>
-                              )}
-
-                              {shop.location && (
-                                <Typography variant="caption" color="text.secondary"
-                                  sx={{ fontSize: 9, display: 'block', mt: 0.5, opacity: 0.45, fontFamily: 'monospace' }}>
-                                  {shop.location.x} {shop.location.y} {shop.location.z}
-                                </Typography>
-                              )}
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      )
-                    })}
-                </Grid>
+            {!loading && gridRows.length === 0 && (
+              <Box sx={{ py: 6, textAlign: 'center' }}>
+                <Typography color="text.secondary" variant="body2">
+                  {shops.length === 0 ? 'No shops returned — check your API key.' : 'No items match the filter.'}
+                </Typography>
               </Box>
-            )
-          })}
+            )}
 
-          {!loading && filtered.length === 0 && (
-            <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
-              {shops.length === 0 ? 'No shops returned — check your API key.' : 'No items match the filter.'}
-            </Typography>
-          )}
+            {loading && (
+              <Box sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
+                <CircularProgress size={20} />
+              </Box>
+            )}
+          </Box>
+
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', opacity: 0.5 }}>
+            {gridRows.length} of {shops.length} shops · click column headers to sort
+          </Typography>
         </Box>
       )}
 

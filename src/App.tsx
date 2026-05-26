@@ -13,8 +13,10 @@ import SmartToyIcon from '@mui/icons-material/SmartToy'
 import ChecklistIcon from '@mui/icons-material/Checklist'
 import TerrainIcon from '@mui/icons-material/Terrain'
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag'
+import EmailIcon from '@mui/icons-material/Email'
 import Portal from './pages/Portal'
 import Etsy from './pages/Etsy'
+import Outlook from './pages/Outlook'
 import Weather from './pages/Weather'
 import Gallery from './pages/Gallery'
 import ClaudeChat from './pages/ClaudeChat'
@@ -54,6 +56,7 @@ const NAV = [
   { label: 'Tasks',     mobileLabel: 'Tasks',   icon: <ChecklistIcon />,    page: 'tasks'   },
   { label: 'EarthMC',  mobileLabel: 'EMC',     icon: <TerrainIcon />,      page: 'earthmc' },
   { label: 'Etsy',     mobileLabel: 'Etsy',    icon: <ShoppingBagIcon />,  page: 'etsy'    },
+  { label: 'Outlook',  mobileLabel: 'Mail',    icon: <EmailIcon />,        page: 'outlook' },
 ]
 
 export default function App() {
@@ -98,6 +101,7 @@ export default function App() {
       case 'tasks':   return <Tasks />
       case 'earthmc': return <EarthMC />
       case 'etsy':    return <Etsy />
+      case 'outlook': return <Outlook />
       default:        return <Portal onNavigate={setPage} />
     }
   }
