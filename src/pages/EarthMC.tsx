@@ -669,11 +669,11 @@ export default function EarthMC() {
           {/* ── Quick filters + search ───────────────────────────────────── */}
           <Stack direction="row" sx={{ gap: 1, mb: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
             {([
-              { key: 'all',    label: `All (${shops.length})` },
-              { key: 'out',    label: `Out of Stock (${outCount})`,  color: '#ef4444' },
-              { key: 'low',    label: `Low (${lowCount})`,           color: '#f59e0b' },
-              { key: 'buying', label: `Buying (${shops.filter(s => s.type === 'buying').length})`, color: '#60a5fa' },
-            ] as const).map(f => (
+              { key: 'all',    label: `All (${shops.length})`,                                              color: '#6366f1' },
+              { key: 'out',    label: `Out of Stock (${outCount})`,                                         color: '#ef4444' },
+              { key: 'low',    label: `Low (${lowCount})`,                                                  color: '#f59e0b' },
+              { key: 'buying', label: `Buying (${shops.filter(s => s.type === 'buying').length})`,          color: '#60a5fa' },
+            ] as { key: 'all' | 'out' | 'low' | 'buying'; label: string; color: string }[]).map(f => (
               <Chip
                 key={f.key}
                 label={f.label}
